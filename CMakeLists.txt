@@ -4,7 +4,9 @@ project(ale-solver VERSION 0.1
     DESCRIPTION "An Arbitrary Lagrangian-Euleran solver"
     LANGUAGES C CXX)
 
-set(SOURCE_FILES src/main.cpp)
+set(SOURCE_FILES src/main.cpp
+    src/method.hpp src/method.cpp
+)
 
 add_executable(ale ${SOURCE_FILES})
 
