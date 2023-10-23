@@ -6,13 +6,28 @@
 
 #include "boundary.hpp"
 
-enum class PrimitiveType { ePoint, eLine, eEdge, eRectangle, eCircle };
+enum class PrimitiveType {
+  ePoint,
+  eLine,
+  eEdge,
+  ePolygon,
+  eRectangle,
+  eCircle
+};
 
 class Point {
  public:
   Point(double x_, double y_);
+  Point(const Point &rhs) = default;
+  Point(Point &&rhs) = default;
+
+  Point &operator=(const Point &rhs) = default;
+  Point &operator=(Point &&rhs) = default;
+
+  ~Point() = default;
 
   bool operator==(const Point &) const = default;
+
  public:
   double getX() const;
   double getY() const;
@@ -29,26 +44,31 @@ class Point {
 
 class Line {
  public:
-  Line(std::shared_ptr<Point> first_, std::shared_ptr<Point> second_);
+  Line(Point first_, Point second_);
 
-  std::shared_ptr<Point> getFirstPoint() const;
-  std::shared_ptr<Point> getSecondPoint() const;
+  Point getFirstPoint() const;
+  Point getSecondPoint() const;
 
-  void setFirstPoint(std::shared_ptr<Point> point);
-  void setSecondPoint(std::shared_ptr<Point> point);
+  void setFirstPoint(Point point);
+  void setSecondPoint(Point point);
 
   double getLength() const;
 
  private:
-  std::shared_ptr<Point> first;
-  std::shared_ptr<Point> second;
+  Point first;
+  Point second;
 
   PrimitiveType type = PrimitiveType::eLine;
 };
 
 class Edge {
  public:
-  Edge(const std::vector<Line> &lines);
+  Edge(const std::vector<Line> &lines_);
+  Edge(const Edge &rhs) = default;
+  Edge(Edge &&rhs) = default;
+
+  Edge &operator=(const Edge &rhs) = default;
+  Edge &operator=(Edge &&rhs) = default;
 
  public:
   const std::vector<Line> &getLines() const;
@@ -63,8 +83,31 @@ class Edge {
 };
 
 class Polygon {
-  Polygon();
+ public:
+  Polygon(std::shared_ptr<Edge> leftEdge, std::shared_ptr<Edge> topEdge,
+          std::shared_ptr<Edge> rightEdge, std::shared_ptr<Edge> bottomEdge);
 
+ public:
+  bool isEnclosed() const;
+
+  virtual bool isInside(double x_, double y_) const;
+
+ private:
+  bool isLineIntersecting(double x_, double y_, const Line &line) const;
+
+ protected:
+  std::shared_ptr<Edge> leftEdge;
+  std::shared_ptr<Edge> topEdge;
+  std::shared_ptr<Edge> rightEdge;
+  std::shared_ptr<Edge> bottomEdge;
+};
+
+class Rectangle : public Polygon {
+ public:
+  Rectangle(double x0, double y0, double width, double height);
+
+ public:
+  virtual bool isInside(double x_, double y_) const override;
 };
 
 // class Primitive2D {
