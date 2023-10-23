@@ -45,6 +45,10 @@ class Point {
 class Line {
  public:
   Line(Point first_, Point second_);
+  Line(const Line &rhs) = default;
+  Line(Line &&rhs) = default;
+
+  Line &operator=(const Line &rhs) = default;
 
   Point getFirstPoint() const;
   Point getSecondPoint() const;
