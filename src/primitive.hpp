@@ -15,6 +15,7 @@ enum class PrimitiveType {
   eCircle
 };
 
+/* Point is a dot with coordinates (x, y) */
 class Point {
  public:
   Point(double x_, double y_);
@@ -42,6 +43,8 @@ class Point {
   PrimitiveType type = PrimitiveType::ePoint;
 };
 
+/* Line is a directional vector with start at first Point and end at the second
+ */
 class Line {
  public:
   Line(Point first_, Point second_);
@@ -50,6 +53,7 @@ class Line {
 
   Line &operator=(const Line &rhs) = default;
 
+ public:
   Point getFirstPoint() const;
   Point getSecondPoint() const;
 
@@ -65,6 +69,8 @@ class Line {
   PrimitiveType type = PrimitiveType::eLine;
 };
 
+/* Edge is an array of continuous lines which will correspond to a particular
+ * side of a quadrilateral grid */
 class Edge {
  public:
   Edge(const std::vector<Line> &lines_);
@@ -86,15 +92,24 @@ class Edge {
   PrimitiveType type = PrimitiveType::eEdge;
 };
 
+/* Polygon is an enclosed space which contains edges */
 class Polygon {
  public:
   Polygon(std::shared_ptr<Edge> leftEdge, std::shared_ptr<Edge> topEdge,
           std::shared_ptr<Edge> rightEdge, std::shared_ptr<Edge> bottomEdge);
 
  public:
-  bool isEnclosed() const;
+  virtual void generateMesh(std::vector<std::vector<double>> &x,
+                            std::vector<std::vector<double>> &y) const;
 
+  bool isEnclosed() const;
   virtual bool isInside(double x_, double y_) const;
+
+  std::shared_ptr<Edge> getLeftEdge() const;
+  std::shared_ptr<Edge> getTopEdge() const;
+  std::shared_ptr<Edge> getRightEdge() const;
+  std::shared_ptr<Edge> getBottomEdge() const;
+  PrimitiveType getType() const;
 
  private:
   bool isLineIntersecting(double x_, double y_, const Line &line) const;
@@ -104,54 +119,38 @@ class Polygon {
   std::shared_ptr<Edge> topEdge;
   std::shared_ptr<Edge> rightEdge;
   std::shared_ptr<Edge> bottomEdge;
+
+ private:
+  PrimitiveType type;
 };
 
+/* rectangle is a polygon with four straight perpendicular edges */
 class Rectangle : public Polygon {
  public:
   Rectangle(double x0, double y0, double width, double height);
+  Rectangle(double x0, double y0, double width, double height, double phi);
 
  public:
+  virtual void generateMesh(std::vector<std::vector<double>> &x,
+                            std::vector<std::vector<double>> &y) const override;
+
   virtual bool isInside(double x_, double y_) const override;
 };
 
-// class Primitive2D {
-//  public:
-//   virtual bool isInside(double x, double y) const;
-// };
-//
-// class PrimitiveRectangle : public Primitive2D {
-//  public:
-//   PrimitiveRectangle(double x0, double y0, double width, double height,
-//                      double phi = 0.);
-//
-//  public:
-//   virtual bool isInside(double x_, double y_) const override;
-//
-//   void getVertices(std::array<double, 4> &x, std::array<double, 4> &y) const;
-//
-//   void setBoundaries(const std::vector<BoundaryType> &bnds);
-//   std::vector<BoundaryType> getBoundaries() const;
-//
-//  private:
-//   std::array<double, 4> x;
-//   std::array<double, 4> y;
-//
-//   std::array<BoundaryType, 4> boundaries;
-// };
-//
-// class PrimitiveCircle : public Primitive2D {
-//  public:
-//   PrimitiveCircle(double x0_, double y0_, double r);
-//
-//  public:
-//   virtual bool isInside(double x_, double y_) const override;
-//
-//  private:
-//   double x0;
-//   double y0;
-//   double r;
-//
-//   BoundaryType boundary;
-// };
-//
+/* Region2D is an array of polygons to support arbitrary shape */
+class Region2D {
+ public:
+  Region2D(std::unique_ptr<Polygon> &&polygon);
+  Region2D(std::vector<std::unique_ptr<Polygon>> &&polygons_);
+
+ public:
+  bool isInside(double x_, double y_) const;
+
+  const std::vector<std::unique_ptr<Polygon>> &getPolygons() const;
+  std::vector<std::unique_ptr<Polygon>> &getPolygons();
+
+ private:
+  std::vector<std::unique_ptr<Polygon>> polygons;
+};
+
 #endif

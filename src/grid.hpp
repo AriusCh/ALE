@@ -37,8 +37,7 @@ class Grid {
 
 class GridALE : public Grid {
  public:
-  GridALE(size_t sizeX_, size_t sizeY_,
-          std::unique_ptr<PrimitiveRectangle> rect);
+  GridALE(size_t sizeX_, size_t sizeY_, const std::unique_ptr<Polygon> & polygon);
   GridALE(GridALE const &rhs) = default;
   GridALE(GridALE &&rhs) = default;
 
@@ -59,10 +58,10 @@ class GridALE : public Grid {
   std::vector<std::vector<double>> p;
   std::vector<std::vector<double>> m;
 
-  std::unique_ptr<Boundary> leftBcs;
-  std::unique_ptr<Boundary> rightBcs;
-  std::unique_ptr<Boundary> bottomBcs;
-  std::unique_ptr<Boundary> topBcs;
+  std::shared_ptr<Boundary> leftBcs;
+  std::shared_ptr<Boundary> rightBcs;
+  std::shared_ptr<Boundary> bottomBcs;
+  std::shared_ptr<Boundary> topBcs;
 };
 
 #endif
