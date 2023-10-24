@@ -1,5 +1,6 @@
 #include "primitive.hpp"
 
+#include <algorithm>
 #include <cassert>
 #include <cmath>
 #include <numbers>
@@ -11,6 +12,7 @@ void Point::setX(double x_) { x = x_; }
 void Point::setY(double y_) { y = y_; }
 
 Line::Line(Point first_, Point second_) : first(first_), second(second_) {}
+void Line::reverse() { std::swap(first, second); }
 Point Line::getFirstPoint() const { return first; }
 Point Line::getSecondPoint() const { return second; }
 void Line::setFirstPoint(Point point) { first = point; }
@@ -22,8 +24,12 @@ double Line::getLength() const {
 }
 
 Edge::Edge(const std::vector<Line> &lines_) : lines(lines_) {}
-const std::vector<Line> &Edge::getLines() const { return lines; }
-std::vector<Line> &Edge::getLines() { return lines; }
+void Edge::reverse() {
+  for (auto &line : lines) {
+    line.reverse();
+  }
+  std::reverse(lines.begin(), lines.end());
+}
 bool Edge::isContinuous() const {
   for (int i = 1; i < lines.size(); i++) {
     if (lines[i].getFirstPoint() != lines[i - 1].getSecondPoint()) {
@@ -32,6 +38,8 @@ bool Edge::isContinuous() const {
   }
   return true;
 }
+const std::vector<Line> &Edge::getLines() const { return lines; }
+std::vector<Line> &Edge::getLines() { return lines; }
 
 Polygon::Polygon(std::shared_ptr<Edge> leftEdge_,
                  std::shared_ptr<Edge> topEdge_,
@@ -47,33 +55,7 @@ bool Polygon::isEnclosed() const {
     return false;
   }
 
-  // Get first and last points of the edges
-  auto leftEdgeFirst = leftEdge->getLines()[0].getFirstPoint();
-  auto leftEdgeLast =
-      leftEdge->getLines()[leftEdge->getLines().size() - 1].getSecondPoint();
-
-  auto topEdgeFirst = topEdge->getLines()[0].getFirstPoint();
-  auto topEdgeLast =
-      topEdge->getLines()[topEdge->getLines().size() - 1].getSecondPoint();
-
-  auto rightEdgeFirst = rightEdge->getLines()[0].getFirstPoint();
-  auto rightEdgeLast =
-      rightEdge->getLines()[rightEdge->getLines().size() - 1].getSecondPoint();
-
-  auto bottomEdgeFirst = bottomEdge->getLines()[0].getFirstPoint();
-  auto bottomEdgeLast =
-      bottomEdge->getLines()[bottomEdge->getLines().size() - 1]
-          .getSecondPoint();
-
-  // Check if geometry constructed clockwise or counterclockwise
-  bool bClockwise =
-      leftEdgeLast == topEdgeFirst && topEdgeLast == rightEdgeFirst &&
-      rightEdgeLast == bottomEdgeFirst && bottomEdgeLast == leftEdgeFirst;
-  bool bCounterClockwise =
-      leftEdgeLast == bottomEdgeFirst && bottomEdgeLast == rightEdgeFirst &&
-      rightEdgeLast == topEdgeFirst && topEdgeLast == leftEdgeFirst;
-
-  return bClockwise || bCounterClockwise;
+  return getClockwiseDirection() != ClockwiseDirection::eNone;
 }
 
 /* Checks if the point with coordinates (x_, y_) is inside the polygon */
@@ -105,6 +87,46 @@ bool Polygon::isInside(double x_, double y_) const {
   }
 
   return counter % 2 == 1;
+}
+ClockwiseDirection Polygon::getClockwiseDirection() const {
+  auto leftEdgeFirst = leftEdge->getLines()[0].getFirstPoint();
+  auto leftEdgeLast =
+      leftEdge->getLines()[leftEdge->getLines().size() - 1].getSecondPoint();
+
+  auto topEdgeFirst = topEdge->getLines()[0].getFirstPoint();
+  auto topEdgeLast =
+      topEdge->getLines()[topEdge->getLines().size() - 1].getSecondPoint();
+
+  auto rightEdgeFirst = rightEdge->getLines()[0].getFirstPoint();
+  auto rightEdgeLast =
+      rightEdge->getLines()[rightEdge->getLines().size() - 1].getSecondPoint();
+
+  auto bottomEdgeFirst = bottomEdge->getLines()[0].getFirstPoint();
+  auto bottomEdgeLast =
+      bottomEdge->getLines()[bottomEdge->getLines().size() - 1]
+          .getSecondPoint();
+
+  // Check if geometry constructed clockwise or counterclockwise
+  bool bClockwise =
+      leftEdgeLast == topEdgeFirst && topEdgeLast == rightEdgeFirst &&
+      rightEdgeLast == bottomEdgeFirst && bottomEdgeLast == leftEdgeFirst;
+  if (bClockwise) {
+    return ClockwiseDirection::eClockwise;
+  }
+  bool bCounterClockwise =
+      leftEdgeLast == bottomEdgeFirst && bottomEdgeLast == rightEdgeFirst &&
+      rightEdgeLast == topEdgeFirst && topEdgeLast == leftEdgeFirst;
+  if (bCounterClockwise) {
+    return ClockwiseDirection::eCounterclockwise;
+  }
+
+  return ClockwiseDirection::eNone;
+}
+void Polygon::reverseClockwiseDirection() {
+  leftEdge->reverse();
+  topEdge->reverse();
+  rightEdge->reverse();
+  bottomEdge->reverse();
 }
 std::shared_ptr<Edge> Polygon::getLeftEdge() const { return leftEdge; }
 std::shared_ptr<Edge> Polygon::getTopEdge() const { return topEdge; }
@@ -272,7 +294,10 @@ bool Rectangle::isInside(double x_, double y_) const {
 }
 
 Region2D::Region2D(std::unique_ptr<Polygon> &&polygon) {
-  polygons.emplace_back(std::move(polygon));
+  if (!(polygon->isEnclosed())) {
+    logger.Log("class Region2D: polygon is not enclosed", LogLevel::eWarning);
+  }
+  polygons.push_back(std::move(polygon));
 }
 Region2D::Region2D(std::vector<std::unique_ptr<Polygon>> &&polygons_)
     : polygons(std::move(polygons_)) {}

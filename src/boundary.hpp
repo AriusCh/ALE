@@ -4,7 +4,6 @@
 #include <vector>
 
 enum class BoundaryType {
-  eInherit,
   eExternalTransparent,
   eExternalNoSlipWall,
   eExternalFree
@@ -14,13 +13,11 @@ class Boundary {
  public:
   Boundary(BoundaryType type_);
 
-  void addPoint(size_t i, size_t j);
+ public:
+  BoundaryType getType() const;
 
  private:
   BoundaryType type;
-
-  std::vector<size_t> i;
-  std::vector<size_t> j;
 };
 
 #endif

@@ -5,15 +5,10 @@
 #include <memory>
 
 #include "boundary.hpp"
+#include "logger.hpp"
 
-enum class PrimitiveType {
-  ePoint,
-  eLine,
-  eEdge,
-  ePolygon,
-  eRectangle,
-  eCircle
-};
+enum class PrimitiveType { ePolygon, eRectangle, eCircle };
+enum class ClockwiseDirection { eClockwise, eCounterclockwise, eNone };
 
 /* Point is a dot with coordinates (x, y) */
 class Point {
@@ -39,8 +34,6 @@ class Point {
  private:
   double x;
   double y;
-
-  PrimitiveType type = PrimitiveType::ePoint;
 };
 
 /* Line is a directional vector with start at first Point and end at the second
@@ -54,6 +47,8 @@ class Line {
   Line &operator=(const Line &rhs) = default;
 
  public:
+  void reverse();
+
   Point getFirstPoint() const;
   Point getSecondPoint() const;
 
@@ -65,8 +60,6 @@ class Line {
  private:
   Point first;
   Point second;
-
-  PrimitiveType type = PrimitiveType::eLine;
 };
 
 /* Edge is an array of continuous lines which will correspond to a particular
@@ -81,15 +74,15 @@ class Edge {
   Edge &operator=(Edge &&rhs) = default;
 
  public:
-  const std::vector<Line> &getLines() const;
-  std::vector<Line> &getLines();
+  void reverse();
 
   bool isContinuous() const;
 
+  const std::vector<Line> &getLines() const;
+  std::vector<Line> &getLines();
+
  private:
   std::vector<Line> lines;
-
-  PrimitiveType type = PrimitiveType::eEdge;
 };
 
 /* Polygon is an enclosed space which contains edges */
@@ -104,6 +97,9 @@ class Polygon {
 
   bool isEnclosed() const;
   virtual bool isInside(double x_, double y_) const;
+
+  ClockwiseDirection getClockwiseDirection() const;
+  void reverseClockwiseDirection();
 
   std::shared_ptr<Edge> getLeftEdge() const;
   std::shared_ptr<Edge> getTopEdge() const;
@@ -122,6 +118,8 @@ class Polygon {
 
  private:
   PrimitiveType type;
+
+  Logger logger;
 };
 
 /* rectangle is a polygon with four straight perpendicular edges */
@@ -148,6 +146,9 @@ class Region2D {
 
   const std::vector<std::unique_ptr<Polygon>> &getPolygons() const;
   std::vector<std::unique_ptr<Polygon>> &getPolygons();
+
+ protected:
+  Logger logger;
 
  private:
   std::vector<std::unique_ptr<Polygon>> polygons;

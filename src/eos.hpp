@@ -3,10 +3,24 @@
 
 class EOS {
  public:
-  virtual double getP() = 0;
-  virtual double getE() = 0;
-  virtual double getC() = 0;
+  virtual double getp(double rho, double e) const = 0;
+  virtual double gete(double rho, double p) const = 0;
+  virtual double getc(double rho, double p) const = 0;
+};
+
+class EOSIdeal : public EOS {
+ public:
+  EOSIdeal(double gamma_);
+
+ public:
+  virtual double getp(double rho, double e) const override;
+  virtual double gete(double rho, double p) const override;
+  virtual double getc(double rho, double p) const override;
+
+  double getGamma() const;
+
+ private:
+  double gamma;
 };
 
 #endif
-

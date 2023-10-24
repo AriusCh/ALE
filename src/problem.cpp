@@ -19,23 +19,39 @@ std::unique_ptr<Grid> Problem::createGrid(size_t nx, size_t ny) const {
     std::vector<std::vector<double>> p;
     std::vector<std::vector<double>> u;
     std::vector<std::vector<double>> v;
+    polygon->generateMesh(x, y);
+    initializeConditions[i](x, y, rho, p, u, v);
   }
 }
 
 RiemannProblem1D::RiemannProblem1D(double xmin, double xmax, double tmax,
                                    double rhoL, double uL, double pL,
                                    double rhoR, double uR, double pR,
-                                   double spl)
+                                   double spl, double gamma)
     : Problem(ProblemType::eRiemannProblem1D,
               AxisymmetryType::eNonSymmetrical) {
   assert(spl >= xmin && spl <= xmax);
 
+  createGeometry(xmin, xmax);
+  createBoundaryTypes();
+  createInitialConditions(rhoL, pL, uL, rhoR, pR, uR, spl);
+  createEOSes(gamma);
+}
+void RiemannProblem1D::createGeometry(double xmin, double xmax) {
   std::unique_ptr<Polygon> rect =
       std::make_unique<Rectangle>(xmin, 0.0, xmax - xmin, 1.0);
-  std::vector<std::unique_ptr<Polygon>> polygons;
-  polygons.emplace_back(std::move(rect));
-  calcRegion = std::make_unique<Region2D>(std::move(polygons));
-
+  calcRegion = std::make_unique<Region2D>(std::move(rect));
+}
+void RiemannProblem1D::createBoundaryTypes() {
+  leftBoundaryTypes.push_back(BoundaryType::eExternalTransparent);
+  topBoundaryTypes.push_back(BoundaryType::eExternalTransparent);
+  rightBoundaryTypes.push_back(BoundaryType::eExternalTransparent);
+  bottomBoundaryTypes.push_back(BoundaryType::eExternalTransparent);
+}
+void RiemannProblem1D::createInitialConditions(double rhoL, double pL,
+                                               double uL, double rhoR,
+                                               double pR, double uR,
+                                               double spl) {
   auto initialCond = [rhoL, pL, uL, rhoR, pR, uR, spl](
                          const std::vector<std::vector<double>> &x,
                          const std::vector<std::vector<double>> &y,
@@ -89,5 +105,8 @@ RiemannProblem1D::RiemannProblem1D(double xmin, double xmax, double tmax,
       v.push_back(vTmv);
     }
   };
-  initialConditions.emplace_back(initialCond);
+  initializeConditions.emplace_back(initialCond);
+}
+void RiemannProblem1D::createEOSes(double gamma) {
+  eoses.push_back(std::make_unique<EOSIdeal>(gamma));
 }
