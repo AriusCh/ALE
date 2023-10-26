@@ -5,16 +5,18 @@
 Grid::Grid(GridType type_, size_t sizeX_, size_t sizeY_)
     : sizeX(sizeX_), sizeY(sizeY_), type(type_) {}
 
-GridALE::GridALE(size_t sizeX_, size_t sizeY_,
-                 const std::unique_ptr<Polygon> &polygon)
-
-    : Grid(GridType::eGridALE, sizeX_, sizeY_) {
-  polygon->generateMesh(x, y);
-
-  auto bcs = rect->getBoundaries();
-
-  bottomBcs = std::make_unique<Boundary>(bcs[0]);
-  rightBcs = std::make_unique<Boundary>(bcs[1]);
-  topBcs = std::make_unique<Boundary>(bcs[2]);
-  leftBcs = std::make_unique<Boundary>(bcs[3]);
-}
+GridALE::GridALE(const std::vector<std::vector<double>> &x,
+                 const std::vector<std::vector<double>> &y,
+                 const std::vector<std::vector<double>> &rho,
+                 const std::vector<std::vector<double>> &p,
+                 const std::vector<std::vector<double>> &u,
+                 const std::vector<std::vector<double>> &v,
+                 std::unique_ptr<EOS> &&eos)
+    : Grid(GridType::eGridALE, rho.size(), rho[0].size()),
+      x(x),
+      y(y),
+      rho(rho),
+      p(p),
+      u(u),
+      v(v),
+      eos(std::move(eos)) {}

@@ -13,17 +13,67 @@ void Point::setY(double y_) { y = y_; }
 
 Line::Line(Point first_, Point second_) : first(first_), second(second_) {}
 void Line::reverse() { std::swap(first, second); }
-Point Line::getFirstPoint() const { return first; }
-Point Line::getSecondPoint() const { return second; }
-void Line::setFirstPoint(Point point) { first = point; }
-void Line::setSecondPoint(Point point) { second = point; }
 double Line::getLength() const {
   double dx = second.getX() - first.getX();
   double dy = second.getY() - first.getY();
   return std::sqrt(dx * dx + dy * dy);
 }
+Point Line::getFirstPoint() const { return first; }
+Point Line::getSecondPoint() const { return second; }
+void Line::setFirstPoint(Point point) { first = point; }
+void Line::setSecondPoint(Point point) { second = point; }
 
 Edge::Edge(const std::vector<Line> &lines_) : lines(lines_) {}
+void Edge::divideLines(size_t newSize) {
+  auto currentSize = lines.size();
+  if (newSize > currentSize) {
+    auto divisions = newSize - currentSize;
+
+    std::vector<int> divPerLine(currentSize, 0);
+    for (int i = 0; i < divisions; i++) {
+      double maxLength = lines[0].getLength() / (divPerLine[0] + 1);
+      int maxIndex = 0;
+      for (int j = 0; j < lines.size(); j++) {
+        double length = lines[j].getLength() / (divPerLine[j] + 1);
+        if (length > maxLength) {
+          maxLength = length;
+          maxIndex = j;
+        }
+      }
+      divPerLine[maxIndex]++;
+    }
+
+    lines.reserve(newSize);
+    int icr = 0;
+    for (int i = 0; i < divPerLine.size(); i++) {
+      if (divPerLine[i] == 0) {
+        continue;
+      }
+      auto &divLine = lines[i + icr];
+      Point firstPoint = divLine.getFirstPoint();
+      Point secondPoint = divLine.getSecondPoint();
+      double dx =
+          (secondPoint.getX() - firstPoint.getX()) / (divPerLine[i] + 1);
+      double dy =
+          (secondPoint.getY() - firstPoint.getY()) / (divPerLine[i] + 1);
+
+      divLine = Line(Point(firstPoint.getX() + divPerLine[i] * dx,
+                           firstPoint.getY() + divPerLine[i] * dy),
+                     secondPoint);
+
+      std::vector<Line> newLines{};
+      newLines.reserve(divPerLine[i]);
+      for (int j = 0; j < divPerLine[i]; j++) {
+        newLines.emplace_back(
+            Point(firstPoint.getX() + j * dx, firstPoint.getY() + j * dy),
+            Point(firstPoint.getX() + (j + 1) * dx,
+                  firstPoint.getY() + (j + 1) * dy));
+      }
+      lines.insert(lines.begin() + i + icr, newLines.begin(), newLines.end());
+      icr += divPerLine[i];
+    }
+  }
+}
 void Edge::reverse() {
   for (auto &line : lines) {
     line.reverse();
@@ -50,11 +100,6 @@ Polygon::Polygon(std::shared_ptr<Edge> leftEdge_,
       rightEdge(rightEdge_),
       bottomEdge(bottomEdge_) {}
 bool Polygon::isEnclosed() const {
-  if (!(leftEdge->isContinuous() && topEdge->isContinuous() &&
-        rightEdge->isContinuous() && bottomEdge->isContinuous())) {
-    return false;
-  }
-
   return getClockwiseDirection() != ClockwiseDirection::eNone;
 }
 
@@ -89,6 +134,11 @@ bool Polygon::isInside(double x_, double y_) const {
   return counter % 2 == 1;
 }
 ClockwiseDirection Polygon::getClockwiseDirection() const {
+  if (!(leftEdge->isContinuous() && topEdge->isContinuous() &&
+        rightEdge->isContinuous() && bottomEdge->isContinuous())) {
+    return ClockwiseDirection::eNone;
+  }
+
   auto leftEdgeFirst = leftEdge->getLines()[0].getFirstPoint();
   auto leftEdgeLast =
       leftEdge->getLines()[leftEdge->getLines().size() - 1].getSecondPoint();

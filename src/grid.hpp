@@ -4,6 +4,8 @@
 #include <memory>
 #include <vector>
 
+#include "boundary.hpp"
+#include "eos.hpp"
 #include "logger.hpp"
 #include "primitive.hpp"
 
@@ -37,11 +39,17 @@ class Grid {
 
 class GridALE : public Grid {
  public:
-  GridALE(size_t sizeX_, size_t sizeY_, const std::unique_ptr<Polygon> & polygon);
-  GridALE(GridALE const &rhs) = default;
+  GridALE(const std::vector<std::vector<double>> &x,
+          const std::vector<std::vector<double>> &y,
+          const std::vector<std::vector<double>> &rho,
+          const std::vector<std::vector<double>> &p,
+          const std::vector<std::vector<double>> &u,
+          const std::vector<std::vector<double>> &v,
+          std::unique_ptr<EOS> &&eos);
+  GridALE(GridALE const &rhs) = delete;
   GridALE(GridALE &&rhs) = default;
 
-  GridALE &operator=(GridALE const &rhs) = default;
+  GridALE &operator=(GridALE const &rhs) = delete;
   GridALE &operator=(GridALE &&rhs) = default;
 
   ~GridALE() = default;
@@ -50,18 +58,21 @@ class GridALE : public Grid {
   void calc() override;
 
  private:
-  std::vector<std::vector<double>> x;
-  std::vector<std::vector<double>> y;
-  std::vector<std::vector<double>> rho;
-  std::vector<std::vector<double>> u;
-  std::vector<std::vector<double>> v;
-  std::vector<std::vector<double>> p;
-  std::vector<std::vector<double>> m;
+  std::vector<std::vector<double>> x;    // Node x coordinates
+  std::vector<std::vector<double>> y;    // Node y coordinates
+  std::vector<std::vector<double>> rho;  // Cell density
+  std::vector<std::vector<double>> p;    // Cell pressure
+  std::vector<std::vector<double>> u;    // Node velocity in Ox direction
+  std::vector<std::vector<double>> v;    // Node velocity in Oy direction
+  std::vector<std::vector<double>> m;    // Node mass
+  std::vector<std::vector<double>> E;    // Cell total specific energy
 
   std::shared_ptr<Boundary> leftBcs;
   std::shared_ptr<Boundary> rightBcs;
   std::shared_ptr<Boundary> bottomBcs;
   std::shared_ptr<Boundary> topBcs;
+
+  std::unique_ptr<EOS> eos;
 };
 
 #endif

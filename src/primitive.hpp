@@ -1,10 +1,9 @@
 #ifndef ALE_SOLVER_SRC_PRIMITIVE_HPP_
 #define ALE_SOLVER_SRC_PRIMITIVE_HPP_
 
-#include <array>
 #include <memory>
+#include <vector>
 
-#include "boundary.hpp"
 #include "logger.hpp"
 
 enum class PrimitiveType { ePolygon, eRectangle, eCircle };
@@ -47,15 +46,15 @@ class Line {
   Line &operator=(const Line &rhs) = default;
 
  public:
-  void reverse();
+  void reverse();  // Swap first and second point
+
+  double getLength() const;  // Compute the length of the line
 
   Point getFirstPoint() const;
   Point getSecondPoint() const;
 
   void setFirstPoint(Point point);
   void setSecondPoint(Point point);
-
-  double getLength() const;
 
  private:
   Point first;
@@ -74,9 +73,13 @@ class Edge {
   Edge &operator=(Edge &&rhs) = default;
 
  public:
-  void reverse();
+  void divideLines(
+      size_t newSize);  // if newSize is bigger than current number of lines
+                        // divide them optimally to get newSize number of lines
 
-  bool isContinuous() const;
+  void reverse();  // Reverses edge
+
+  bool isContinuous() const;  // returns if lines of the edge are connected
 
   const std::vector<Line> &getLines() const;
   std::vector<Line> &getLines();
@@ -93,13 +96,19 @@ class Polygon {
 
  public:
   virtual void generateMesh(std::vector<std::vector<double>> &x,
-                            std::vector<std::vector<double>> &y) const;
+                            std::vector<std::vector<double>> &y)
+      const;  // Generate a quadrilateral mesh
 
-  bool isEnclosed() const;
-  virtual bool isInside(double x_, double y_) const;
+  bool isEnclosed()
+      const;  // Check if edges are continuous and their ends are connected
+  virtual bool isInside(
+      double x_, double y_) const;  // Check if a point is inside the polygon
 
-  ClockwiseDirection getClockwiseDirection() const;
-  void reverseClockwiseDirection();
+  ClockwiseDirection getClockwiseDirection()
+      const;  // returns if the edge structure is clockwise, counterClockwise or
+              // the polygon is not enclosed
+  void reverseClockwiseDirection();  // if the polygon is enclosed changes
+                                     // clockwise direction
 
   std::shared_ptr<Edge> getLeftEdge() const;
   std::shared_ptr<Edge> getTopEdge() const;
@@ -142,7 +151,8 @@ class Region2D {
   Region2D(std::vector<std::unique_ptr<Polygon>> &&polygons_);
 
  public:
-  bool isInside(double x_, double y_) const;
+  bool isInside(double x_,
+                double y_) const;  // Check if a point is inside the region
 
   const std::vector<std::unique_ptr<Polygon>> &getPolygons() const;
   std::vector<std::unique_ptr<Polygon>> &getPolygons();
