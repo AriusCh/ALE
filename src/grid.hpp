@@ -22,13 +22,14 @@ class Grid {
 
   ~Grid() = default;
 
+ public:
+  virtual std::unique_ptr<Boundary> createExternalBoundary(
+      BoundaryType type, ExternalBoundarySide side) = 0;
+
   size_t getSizeX() const;
   size_t getSizeY() const;
 
-  virtual void calc() = 0;
-
  public:
- protected:
   size_t sizeX;
   size_t sizeY;
 
@@ -55,9 +56,18 @@ class GridALE : public Grid {
   ~GridALE() = default;
 
  public:
-  void calc() override;
+  virtual std::unique_ptr<Boundary> createExternalBoundary(
+      BoundaryType type, ExternalBoundarySide side) override;
 
- private:
+  /* Calculate volume of cell i, j of a grid (x, y) */
+  virtual double getV(int i, int j, std::vector<std::vector<double>> &x,
+                      std::vector<std::vector<double>> &y) const;
+
+ protected:
+  void PopulateCellEnergy();
+  void PopulateNodeMass();
+
+ public:
   std::vector<std::vector<double>> x;    // Node x coordinates
   std::vector<std::vector<double>> y;    // Node y coordinates
   std::vector<std::vector<double>> rho;  // Cell density
@@ -67,10 +77,8 @@ class GridALE : public Grid {
   std::vector<std::vector<double>> m;    // Node mass
   std::vector<std::vector<double>> E;    // Cell total specific energy
 
-  std::shared_ptr<Boundary> leftBcs;
-  std::shared_ptr<Boundary> rightBcs;
-  std::shared_ptr<Boundary> bottomBcs;
-  std::shared_ptr<Boundary> topBcs;
+  std::vector<std::vector<double>> uNext;
+  std::vector<std::vector<double>> vNext;
 
   std::unique_ptr<EOS> eos;
 };

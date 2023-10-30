@@ -15,6 +15,8 @@ class Boundary {
  public:
   Boundary(BoundaryType type_);
 
+  virtual void resolveLagrangianPhase() = 0;
+
  public:
   BoundaryType getType() const;
 
@@ -24,7 +26,21 @@ class Boundary {
 
 class ExternalBoundary : public Boundary {
  public:
-  ExternalBoundary(BoundaryType type_, ExternalBoundarySide side_);
+  ExternalBoundary(BoundaryType type_, ExternalBoundarySide side_,
+                   std::vector<std::vector<double>> &x,
+                   std::vector<std::vector<double>> &y,
+                   std::vector<std::vector<double>> &rho,
+                   std::vector<std::vector<double>> &p,
+                   std::vector<std::vector<double>> &m,
+                   std::vector<std::vector<double>> &uNext,
+                   std::vector<std::vector<double>> &vNext);
+
+  virtual void resolveLagrangianPhase() override;
+
+ protected:
+  void resolveLagrangianPhaseExternalTransparent(
+      std::vector<std::vector<double>> &uNext,
+      std::vector<std::vector<double>> &vNext);
 
  protected:
   ExternalBoundarySide side;
@@ -33,6 +49,8 @@ class ExternalBoundary : public Boundary {
   std::vector<std::vector<double>> &rho;
   std::vector<std::vector<double>> &p;
   std::vector<std::vector<double>> &m;
+  std::vector<std::vector<double>> &uNext;
+  std::vector<std::vector<double>> &vNext;
 };
 
 #endif

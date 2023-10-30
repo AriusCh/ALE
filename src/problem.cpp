@@ -9,10 +9,11 @@ Problem::Problem(ProblemType type_, AxisymmetryType symType_, double tmin,
 ProblemType Problem::getType() const { return type; }
 AxisymmetryType Problem::getSymmetryType() const { return symType; }
 
-std::unique_ptr<GridManager> Problem::createGrid(size_t nx, size_t ny) {
+std::vector<std::unique_ptr<GridALE>> Problem::createALEGrids(size_t nx,
+                                                              size_t ny) {
   const auto &polygons = calcRegion->getPolygons();
 
-  std::vector<std::unique_ptr<Grid>> grids(polygons.size());
+  std::vector<std::unique_ptr<GridALE>> grids(polygons.size());
   for (size_t i = 0; i < polygons.size(); i++) {
     const auto &polygon = polygons[i];
     std::vector<std::vector<double>> x;
@@ -26,6 +27,7 @@ std::unique_ptr<GridManager> Problem::createGrid(size_t nx, size_t ny) {
     grids[i] =
         std::make_unique<GridALE>(x, y, rho, p, u, v, std::move(eoses[i]));
   }
+  return grids;
 }
 void Problem::create() {
   createGeometry();

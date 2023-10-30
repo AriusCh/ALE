@@ -7,8 +7,16 @@ project(ale-solver VERSION 0.1
 set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
 
 set(SOURCE_FILES src/main.cpp
+    src/task.hpp src/task.cpp
+    src/simulation.hpp src/simulation.cpp
     src/method.hpp src/method.cpp
+    src/grid_manager.hpp src/grid_manager.cpp
+    src/grid.hpp src/grid.cpp
+    src/boundary.hpp src/boundary.cpp
+    src/problem.hpp src/problem.cpp
     src/primitive.hpp src/primitive.cpp
+    src/eos.hpp src/eos.cpp
+    src/logger.hpp src/logger.cpp
 )
 
 add_executable(ale ${SOURCE_FILES})

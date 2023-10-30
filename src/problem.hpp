@@ -33,7 +33,15 @@ class Problem {
   ProblemType getType() const;
   AxisymmetryType getSymmetryType() const;
 
-  std::unique_ptr<GridManager> createGrid(size_t nx, size_t ny);
+  std::vector<std::unique_ptr<GridALE>> createALEGrids(size_t nx, size_t ny);
+
+  std::vector<BoundaryType> getLeftBoundaryTypes() const;
+  std::vector<BoundaryType> getTopBoundaryTypes() const;
+  std::vector<BoundaryType> getRightBoundaryTypes() const;
+  std::vector<BoundaryType> getBottomBoundaryTypes() const;
+
+  double getTMin() const;
+  double getTMax() const;
 
  protected:
   void create();
@@ -44,7 +52,7 @@ class Problem {
   createInitialConditions() = 0;  // create initial condition functions for each
                                   // polygon in region
   virtual void
-  createEOSes() = 0;  // create equasion of state for each polygon in region
+  createEOSes() = 0;  // create equation of state for each polygon in region
 
  private:
  protected:
