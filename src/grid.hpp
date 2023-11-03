@@ -1,86 +1,54 @@
 #ifndef ALE_SOLVER_SRC_GRID_HPP_
 #define ALE_SOLVER_SRC_GRID_HPP_
 
+#include <functional>
 #include <memory>
 #include <vector>
 
 #include "boundary.hpp"
 #include "eos.hpp"
 #include "logger.hpp"
-#include "primitive.hpp"
 
 enum class GridType { eGridALE };
 
-class Grid {
+class GridALE {
  public:
-  Grid(GridType type_, size_t sizeX_, size_t sizeY_);
-  Grid(Grid const &rhs) = default;
-  Grid(Grid &&rhs) = default;
-
-  Grid &operator=(Grid const &rhs) = default;
-  Grid &operator=(Grid &&rhs) = default;
-
-  ~Grid() = default;
-
- public:
-  virtual std::unique_ptr<Boundary> createExternalBoundary(
-      BoundaryType type, ExternalBoundarySide side) = 0;
-
-  size_t getSizeX() const;
-  size_t getSizeY() const;
-
- public:
-  size_t sizeX;
-  size_t sizeY;
-
- private:
-  GridType type;
-  Logger logger;
-};
-
-class GridALE : public Grid {
- public:
-  GridALE(const std::vector<std::vector<double>> &x,
-          const std::vector<std::vector<double>> &y,
-          const std::vector<std::vector<double>> &rho,
-          const std::vector<std::vector<double>> &p,
-          const std::vector<std::vector<double>> &u,
-          const std::vector<std::vector<double>> &v,
-          std::unique_ptr<EOS> &&eos);
-  GridALE(GridALE const &rhs) = delete;
+  GridALE(int sizeX, int sizeY, double xmin, double xmax, double ymin,
+          double ymax, std::function<double(double, double)> uInit,
+          std::function<double(double, double)> vInit,
+          std::function<double(double, double)> rhoInit,
+          std::function<double(double, double)> pInit,
+          std::shared_ptr<EOS> eos);
+  GridALE(GridALE const &rhs) = default;
   GridALE(GridALE &&rhs) = default;
 
   GridALE &operator=(GridALE const &rhs) = delete;
-  GridALE &operator=(GridALE &&rhs) = default;
+  GridALE &operator=(GridALE &&rhs) = delete;
 
   ~GridALE() = default;
 
  public:
-  virtual std::unique_ptr<Boundary> createExternalBoundary(
-      BoundaryType type, ExternalBoundarySide side) override;
-
   /* Calculate volume of cell i, j of a grid (x, y) */
-  virtual double getV(int i, int j, std::vector<std::vector<double>> &x,
-                      std::vector<std::vector<double>> &y) const;
+  static double getV(int i, int j, std::vector<std::vector<double>> &x,
+                     std::vector<std::vector<double>> &y);
 
  protected:
-  void PopulateCellEnergy();
-  void PopulateNodeMass();
+  void populateCellEnergy();
+  void populateNodeMass();
 
  public:
+  const int sizeX, sizeY;
+
   std::vector<std::vector<double>> x;    // Node x coordinates
   std::vector<std::vector<double>> y;    // Node y coordinates
-  std::vector<std::vector<double>> rho;  // Cell density
-  std::vector<std::vector<double>> p;    // Cell pressure
   std::vector<std::vector<double>> u;    // Node velocity in Ox direction
   std::vector<std::vector<double>> v;    // Node velocity in Oy direction
   std::vector<std::vector<double>> m;    // Node mass
+  std::vector<std::vector<double>> rho;  // Cell density
+  std::vector<std::vector<double>> p;    // Cell pressure
   std::vector<std::vector<double>> E;    // Cell total specific energy
 
-  std::vector<std::vector<double>> uNext;
-  std::vector<std::vector<double>> vNext;
-
-  std::unique_ptr<EOS> eos;
+  std::shared_ptr<EOS> eos;
 };
 
 #endif

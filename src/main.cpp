@@ -3,12 +3,15 @@
 
 #include "method.hpp"
 #include "problem.hpp"
+#include "simulation.hpp"
 
-int main(int argc, char *argv[]) {
-  std::unique_ptr<Problem> problem = std::make_unique<RiemannProblem1Dx>(
-      0.0, 1.0, 0.2, 1.0, 0.0, 1.0, 0.125, 0.0, 0.1, 0.5, 1.4);
+int main([[maybe_unused]] int argc, [[maybe_unused]] char *argv[]) {
+  extern std::shared_ptr<Problem> sodTest;
 
-  MethodALE method(std::move(problem));
+  std::shared_ptr<MethodALE> method(
+      std::make_shared<MethodALE>(sodTest, 100, 100, 1.0, 1));
+
+  std::shared_ptr<Simulation> sim(std::make_shared<Simulation>(method));
 
   return 0;
 }

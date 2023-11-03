@@ -133,6 +133,31 @@ bool Polygon::isInside(double x_, double y_) const {
 
   return counter % 2 == 1;
 }
+bool Polygon::isInside(const Point &point) const {
+  return isInside(point.getX(), point.getY());
+}
+bool Polygon::isInside(const Line &line) const {
+  return isInside(line.getFirstPoint()) && isInside(line.getSecondPoint());
+}
+bool Polygon::isInside(std::shared_ptr<Edge> edge) const {
+  for (const auto &line : edge->getLines()) {
+    if (!(isInside(line.getSecondPoint()))) {
+      return false;
+    }
+  }
+  return isInside(edge->getLines()[0].getFirstPoint());
+}
+bool Polygon::isIntersecting(const Line &line) const {
+  return isInside(line.getFirstPoint()) != isInside(line.getSecondPoint());
+}
+bool Polygon::isIntersecting(const std::shared_ptr<Edge> edge) const {
+  for (const auto &line : edge->getLines()) {
+    if (isIntersecting(line)) {
+      return true;
+    }
+  }
+  return false;
+}
 ClockwiseDirection Polygon::getClockwiseDirection() const {
   if (!(leftEdge->isContinuous() && topEdge->isContinuous() &&
         rightEdge->isContinuous() && bottomEdge->isContinuous())) {
@@ -343,25 +368,28 @@ bool Rectangle::isInside(double x_, double y_) const {
   return true;
 }
 
-Region2D::Region2D(std::unique_ptr<Polygon> &&polygon) {
+Region2D::Region2D(std::unique_ptr<Polygon> polygon) {
   if (!(polygon->isEnclosed())) {
     logger.Log("class Region2D: polygon is not enclosed", LogLevel::eWarning);
   }
-  polygons.push_back(std::move(polygon));
+  std::vector<std::unique_ptr<Polygon>> polygonsTmp{};
+  polygonsTmp.push_back(std::move(polygon));
+  polygons.push_back(std::move(polygonsTmp));
 }
-Region2D::Region2D(std::vector<std::unique_ptr<Polygon>> &&polygons_)
-    : polygons(std::move(polygons_)) {}
 bool Region2D::isInside(double x_, double y_) const {
-  for (const auto &polygon : polygons) {
-    if (polygon->isInside(x_, y_)) {
-      return true;
+  for (const auto &polygonLine : polygons) {
+    for (const auto &polygon : polygonLine) {
+      if (polygon->isInside(x_, y_)) {
+        return true;
+      }
     }
   }
   return false;
 }
-const std::vector<std::unique_ptr<Polygon>> &Region2D::getPolygons() const {
+const std::vector<std::vector<std::unique_ptr<Polygon>>> &
+Region2D::getPolygons() const {
   return polygons;
 }
-std::vector<std::unique_ptr<Polygon>> &Region2D::getPolygons() {
+std::vector<std::vector<std::unique_ptr<Polygon>>> &Region2D::getPolygons() {
   return polygons;
 }

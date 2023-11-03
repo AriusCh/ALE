@@ -1,6 +1,7 @@
 #include "logger.hpp"
 
 #include <iostream>
+#include <syncstream>
 
 Logger::Logger() {
 #ifdef NDEBUG
@@ -16,16 +17,17 @@ void Logger::Log(std::string message, LogLevel logLevel) const {
     return;
   }
 
-  std::cout << "[";
+  std::osyncstream ostream(std::cout);
+  ostream << "[";
   switch (logLevel) {
     case LogLevel::eInfo:
-      std::cout << "INFO";
+      ostream << "INFO";
     case LogLevel::eWarning:
-      std::cout << "WARNING";
+      ostream << "WARNING";
     case LogLevel::eError:
-      std::cout << "ERROR";
+      ostream << "ERROR";
   }
-  std::cout << "] " << message << std::endl;
+  ostream << "] " << message << std::endl;
 }
 
 LogLevel Logger::getMinLogLevel() const { return minLogLevel; }

@@ -2,6 +2,8 @@
 
 #include <cmath>
 
+EOS::~EOS() {}
+
 EOSIdeal::EOSIdeal(double gamma_) : gamma(gamma_) {}
 double EOSIdeal::getp(double rho, double e) const {
   return (gamma - 1.) * rho * e;

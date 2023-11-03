@@ -103,10 +103,16 @@ class Polygon {
       const;  // Check if edges are continuous and their ends are connected
   virtual bool isInside(
       double x_, double y_) const;  // Check if a point is inside the polygon
+  bool isInside(const Point &point) const;
+  bool isInside(const Line &line) const;
+  bool isInside(std::shared_ptr<Edge> edge) const;
+
+  bool isIntersecting(const Line &line) const;
+  bool isIntersecting(const std::shared_ptr<Edge> edge) const;
 
   ClockwiseDirection getClockwiseDirection()
-      const;  // returns if the edge structure is clockwise, counterClockwise or
-              // the polygon is not enclosed
+      const;  // returns if the edge structure is clockwise,
+              // counterClockwise or the polygon is not enclosed
   void reverseClockwiseDirection();  // if the polygon is enclosed changes
                                      // clockwise direction
 
@@ -147,21 +153,20 @@ class Rectangle : public Polygon {
 /* Region2D is an array of polygons to support arbitrary shape */
 class Region2D {
  public:
-  Region2D(std::unique_ptr<Polygon> &&polygon);
-  Region2D(std::vector<std::unique_ptr<Polygon>> &&polygons_);
+  Region2D(std::unique_ptr<Polygon> polygon);
 
  public:
   bool isInside(double x_,
                 double y_) const;  // Check if a point is inside the region
 
-  const std::vector<std::unique_ptr<Polygon>> &getPolygons() const;
-  std::vector<std::unique_ptr<Polygon>> &getPolygons();
+  const std::vector<std::vector<std::unique_ptr<Polygon>>> &getPolygons() const;
+  std::vector<std::vector<std::unique_ptr<Polygon>>> &getPolygons();
 
  protected:
   Logger logger;
 
  private:
-  std::vector<std::unique_ptr<Polygon>> polygons;
+  std::vector<std::vector<std::unique_ptr<Polygon>>> polygons;
 };
 
 #endif

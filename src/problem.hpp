@@ -3,96 +3,86 @@
 
 #include <functional>
 #include <memory>
+#include <string>
 #include <vector>
 
 #include "boundary.hpp"
 #include "eos.hpp"
 #include "grid.hpp"
-#include "grid_manager.hpp"
 #include "logger.hpp"
-#include "primitive.hpp"
 
 enum class ProblemType { eRiemannProblem1Dx };
 
-enum class AxisymmetryType { eNonSymmetrical, eSymmetrical };
+enum class AxisymmetryType { eNone, eCylindrical };
 
 /*  */
 class Problem {
  public:
-  Problem(ProblemType type_, AxisymmetryType symType_, double tmin,
-          double tmax);
-  Problem(Problem const &rhs) = delete;
+  Problem(const std::string &name_, ProblemType type_, AxisymmetryType symType_,
+          double xmin_, double xmax_, double ymin_, double ymax_, double tmin_,
+          double tmax_, BoundaryType leftBoundaryType_,
+          BoundaryType topBoundaryType_, BoundaryType rightBoundaryType_,
+          BoundaryType bottomBoundaryType_);
+  Problem(Problem const &rhs) = default;
   Problem(Problem &&rhs) = default;
 
   Problem &operator=(Problem const &rhs) = delete;
-  Problem &operator=(Problem &&rhs) = default;
+  Problem &operator=(Problem &&rhs) = delete;
 
-  virtual ~Problem() = 0;
+  virtual ~Problem() = default;
 
  public:
-  ProblemType getType() const;
-  AxisymmetryType getSymmetryType() const;
-
-  std::vector<std::unique_ptr<GridALE>> createALEGrids(size_t nx, size_t ny);
-
-  std::vector<BoundaryType> getLeftBoundaryTypes() const;
-  std::vector<BoundaryType> getTopBoundaryTypes() const;
-  std::vector<BoundaryType> getRightBoundaryTypes() const;
-  std::vector<BoundaryType> getBottomBoundaryTypes() const;
-
-  double getTMin() const;
-  double getTMax() const;
+  virtual std::shared_ptr<GridALE> createALEGrid(
+      int sizeX,
+      int sizeY) const;  // Create a rectangle ALE grid
 
  protected:
-  void create();
-  virtual void createGeometry() = 0;       // create region of calculation
-  virtual void createBoundaryTypes() = 0;  // create boundary types for each
-                                           // polygon in region
-  virtual void
-  createInitialConditions() = 0;  // create initial condition functions for each
-                                  // polygon in region
-  virtual void
-  createEOSes() = 0;  // create equation of state for each polygon in region
+  void create();  // Function that calls all create functions
+  virtual void createInitializers() = 0;  // create initial condition function
+  virtual void createEOS() = 0;           // create equation of state
 
  private:
+ public:
+  const std::string name;         // Problem name
+  const ProblemType type;         // Problem type
+  const AxisymmetryType symType;  // Problem axisymmetry
+
+  const double xmin, xmax, ymin,
+      ymax;                 // Starting rectangle simulation box boundaries
+  const double tmin, tmax;  // Simulation time interval
+  const BoundaryType leftBoundaryType;    // Left boundary type
+  const BoundaryType topBoundaryType;     // Top boundary type
+  const BoundaryType rightBoundaryType;   // Right boundary type
+  const BoundaryType bottomBoundaryType;  // Bottom boundary type
+
+  std::function<double(double x, double y)>
+      uInitializer;  // Function that returns u initial value depending on the
+                     // coords
+  std::function<double(double x, double y)>
+      vInitializer;  // Function that returns v initial value depending on the
+                     // coords
+  std::function<double(double x, double y)>
+      rhoInitializer;  // Function that returns rho initial value
+  std::function<double(double x, double y)>
+      pInitializer;          // Function that returns p initial value
+  std::shared_ptr<EOS> eos;  // EOS to use in the grid
+
  protected:
-  std::unique_ptr<Region2D> calcRegion;
-  std::vector<BoundaryType> leftBoundaryTypes;
-  std::vector<BoundaryType> topBoundaryTypes;
-  std::vector<BoundaryType> rightBoundaryTypes;
-  std::vector<BoundaryType> bottomBoundaryTypes;
-  std::vector<std::function<void(
-      const std::vector<std::vector<double>> &,
-      const std::vector<std::vector<double>> &,
-      std::vector<std::vector<double>> &, std::vector<std::vector<double>> &,
-      std::vector<std::vector<double>> &, std::vector<std::vector<double>> &)>>
-      initializeConditions;
-  std::vector<std::unique_ptr<EOS>> eoses;
-
-  double tmin = 0., tmax;
-
   Logger logger;
-
- private:
-  ProblemType type;
-  AxisymmetryType symType;
 };
 
 /*  */
 class RiemannProblem1Dx : public Problem {
  public:
-  RiemannProblem1Dx(double xmin, double xmax, double tmax, double rhoL,
-                    double uL, double pL, double rhoR, double uR, double pR,
-                    double spl, double gamma);
+  RiemannProblem1Dx(const std::string &name, double xmin, double xmax,
+                    double tmax, double rhoL, double uL, double pL, double rhoR,
+                    double uR, double pR, double spl, double gamma);
 
  protected:
-  virtual void createGeometry() override;
-  virtual void createBoundaryTypes() override;
-  virtual void createInitialConditions() override;
-  virtual void createEOSes() override;
+  virtual void createInitializers() override;
+  virtual void createEOS() override;
 
  private:
-  double xmin, xmax;
   double rhoL, pL, uL;
   double rhoR, pR, uR;
   double spl;
