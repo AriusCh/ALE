@@ -1,6 +1,8 @@
 #include "problem.hpp"
 
 #include <cassert>
+#include <format>
+#include <fstream>
 
 Problem::Problem(const std::string &name_, ProblemType type_,
                  AxisymmetryType symType_, double xmin_, double xmax_,
@@ -27,7 +29,33 @@ std::shared_ptr<GridALE> Problem::createALEGrid(int sizeX, int sizeY) const {
                                    uInitializer, vInitializer, rhoInitializer,
                                    pInitializer, eos);
 }
-void Problem::create() {
+void Problem::dumpGrid(std::shared_ptr<GridALE> grid) const {
+  std::function<void(std::ofstream ofs)> outputF =
+      [x = grid->x, y = grid->y, u = grid->u, v = grid->v, rho = grid->rho,
+       p = grid->p, sizeX = grid->sizeX, sizeY = grid->sizeY,
+       eos = grid->eos](std::ofstream ofs) {
+        ofs << sizeX << " " << sizeY << std::endl;
+        for (int i = 0; i < sizeX; i++) {
+          for (int j = 0; j < sizeY; j++) {
+            double xij =
+                0.25 * (x[i][j] + x[i + 1][j] + x[i][j + 1] + x[i + 1][j + 1]);
+            double yij =
+                0.25 * (y[i][j] + y[i + 1][j] + y[i][j + 1] + y[i + 1][j + 1]);
+            double uij =
+                0.25 * (u[i][j] + u[i + 1][j] + u[i][j + 1] + u[i + 1][j + 1]);
+            double vij =
+                0.25 * (v[i][j] + v[i + 1][j] + v[i][j + 1] + v[i + 1][j + 1]);
+            double rhoij = rho[i][j];
+            double pij = p[i][j];
+            double eij = eos->gete(rhoij, pij);
+            auto output = std::format("{} {} {} {} {} {} {} {} {}", i, j, xij,
+                                      yij, uij, vij, rhoij, pij, eij);
+            ofs << output << std::endl;
+          }
+        }
+      };
+}
+void Problem::createProblem() {
   createInitializers();
   createEOS();
 }
@@ -53,7 +81,7 @@ RiemannProblem1Dx::RiemannProblem1Dx(const std::string &name, double xmin,
       gamma(gamma) {
   assert(spl >= xmin && spl <= xmax);
 
-  create();
+  createProblem();
 }
 void RiemannProblem1Dx::createInitializers() {
   uInitializer = [uL = this->uL, uR = this->uR, spl = this->spl](

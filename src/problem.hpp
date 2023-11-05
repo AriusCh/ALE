@@ -10,6 +10,7 @@
 #include "eos.hpp"
 #include "grid.hpp"
 #include "logger.hpp"
+#include "output_mgr.hpp"
 
 enum class ProblemType { eRiemannProblem1Dx };
 
@@ -35,9 +36,11 @@ class Problem {
   virtual std::shared_ptr<GridALE> createALEGrid(
       int sizeX,
       int sizeY) const;  // Create a rectangle ALE grid
+  virtual void dumpGrid(
+      std::shared_ptr<GridALE> grid) const;  // Dump grid as 2D
 
  protected:
-  void create();  // Function that calls all create functions
+  void createProblem();  // Function that calls all create functions
   virtual void createInitializers() = 0;  // create initial condition function
   virtual void createEOS() = 0;           // create equation of state
 
@@ -68,6 +71,7 @@ class Problem {
   std::shared_ptr<EOS> eos;  // EOS to use in the grid
 
  protected:
+  Writer writer;
   Logger logger;
 };
 

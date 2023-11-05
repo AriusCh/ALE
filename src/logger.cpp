@@ -5,7 +5,7 @@
 
 Logger::Logger() {
 #ifdef NDEBUG
-  minLogLevel = LogLevel::eWarning;
+  minLogLevel = LogLevel::eGeneral;
 #else
   minLogLevel = LogLevel::eInfo;
 #endif
@@ -22,6 +22,8 @@ void Logger::Log(std::string message, LogLevel logLevel) const {
   switch (logLevel) {
     case LogLevel::eInfo:
       ostream << "INFO";
+    case LogLevel::eGeneral:
+      ostream << "GENERAL";
     case LogLevel::eWarning:
       ostream << "WARNING";
     case LogLevel::eError:

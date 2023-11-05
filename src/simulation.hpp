@@ -4,9 +4,11 @@
 #include <memory>
 
 #include "method.hpp"
+#include "output_mgr.hpp"
+
 class Simulation {
  public:
-  Simulation(std::shared_ptr<Method> method);
+  Simulation(std::shared_ptr<Method> method, std::shared_ptr<Problem> problem);
   Simulation(Simulation const &rhs) = default;
   Simulation(Simulation &&rhs) = default;
 
@@ -21,13 +23,17 @@ class Simulation {
  private:
   void logSuccessfulIteration(int iterationNumber, double t, double dt,
                               double calcTime) const;
+  void logSimulationStart() const;
+  void logSimulationEnd(double simTime) const;
 
  private:
   std::shared_ptr<Method> method;
+  std::shared_ptr<Problem> problem;
 
   double t;
 
   Logger logger;
+  Writer writer;
 };
 
 #endif

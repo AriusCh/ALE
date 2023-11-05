@@ -3,7 +3,7 @@
 
 #include <string>
 
-enum class LogLevel { eInfo = 0, eWarning = 1, eError = 2 };
+enum class LogLevel { eInfo = 0, eGeneral = 1, eWarning = 2, eError = 3 };
 
 class Logger {
  public:

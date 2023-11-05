@@ -4,9 +4,9 @@
 #include <vector>
 
 enum class BoundaryType {
-  eExternalTransparent,
-  eExternalNoSlipWall,
-  eExternalFree
+  eExternalFree = 0,
+  eExternalTransparent = 1,
+  eExternalNoSlipWall = 2,
 };
 
 #endif

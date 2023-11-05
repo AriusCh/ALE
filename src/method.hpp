@@ -41,6 +41,8 @@ class MethodALE : public Method {
   MethodALE(std::shared_ptr<Problem> problem, int sizeX, int sizeY, double CFL,
             int nThreads = 1);
 
+  virtual ~MethodALE();
+
  public:
   virtual void calc(double dt);
   virtual double calcdt() const;
@@ -49,7 +51,16 @@ class MethodALE : public Method {
   void initializeMethod();
   void initializeThreads();
 
+  void threadFunction(const int imin, const int imax, const int jmin,
+                      const int jmax, const int threadNum);
+  void parallelLagrangianPhase(const int imin, const int imax, const int jmin,
+                               const int jmax, const int threadNum);
+
   void resolveBoundaries();
+  void resolveLeftBoundary();
+  void resolveTopBoundary();
+  void resolveRightBoundary();
+  void resolveBottomBoundary();
 
   void checkPressureConvergence();
   void checkCoordsConvergence();
@@ -76,7 +87,7 @@ class MethodALE : public Method {
   const BoundaryType bottomBoundary;
 
   std::promise<Status> statusPromise;
-  std::shared_future<Status> statusFuture;
+  std::shared_future<Status> statusFutureGlobal;
 
   std::vector<double> coordsConvergenceMax;
   std::vector<double> pressureConvergenceMax;
@@ -89,13 +100,6 @@ class MethodALE : public Method {
   std::barrier<std::function<void()>> lagrangianPressureConvergenceSync;
   std::barrier<std::function<void()>> lagrangianCoordsConvergenceSync;
 
-  std::function<void(const int imin, const int imax, const int jmin,
-                     const int jmax, const int threadNum)>
-      threadFunction;
-  std::function<void(const int imin, const int imax, const int jmin,
-                     const int jmax, const int threadNum)>
-      lagrangianPhaseFunction;
-
   double epsx = 0.5;
   double epsu = 0.5;
 
@@ -104,6 +108,8 @@ class MethodALE : public Method {
 
   std::vector<std::future<void>> threads;
   const int nThreads;
+
+  Logger logger;
 };
 
 #endif
