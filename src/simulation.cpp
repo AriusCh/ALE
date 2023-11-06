@@ -11,6 +11,7 @@ void Simulation::run() {
 
   int iterationNum = 0;
   logSimulationStart();
+  method->dumpGrid(problem);
   auto simStart = std::chrono::high_resolution_clock::now();
   while (t < method->tmax) {
     double dt = method->calcdt();
@@ -30,6 +31,7 @@ void Simulation::run() {
     logSuccessfulIteration(iterationNum, t, dt, calcTime);
 
     t += dt;
+    method->t += dt;
     iterationNum++;
   }
   double simulationTime =
@@ -37,6 +39,7 @@ void Simulation::run() {
                                     simStart)
           .count();
   logSimulationEnd(simulationTime);
+  method->dumpGrid(problem);
 }
 
 void Simulation::logSuccessfulIteration(int iterationNumber, double t,

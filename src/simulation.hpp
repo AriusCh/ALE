@@ -33,7 +33,6 @@ class Simulation {
   double t;
 
   Logger logger;
-  Writer writer;
 };
 
 #endif

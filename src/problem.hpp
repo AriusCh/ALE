@@ -36,8 +36,8 @@ class Problem {
   virtual std::shared_ptr<GridALE> createALEGrid(
       int sizeX,
       int sizeY) const;  // Create a rectangle ALE grid
-  virtual void dumpGrid(
-      std::shared_ptr<GridALE> grid) const;  // Dump grid as 2D
+  virtual void dumpGrid(std::shared_ptr<GridALE> grid,
+                        double t) const;  // Dump grid as 2D
 
  protected:
   void createProblem();  // Function that calls all create functions

@@ -14,4 +14,7 @@ double EOSIdeal::gete(double rho, double p) const {
 double EOSIdeal::getc(double rho, double p) const {
   return std::sqrt(gamma * p / rho);
 }
+double EOSIdeal::gets(double rho, double p) const {
+  return p / std::pow(rho, gamma);
+}
 double EOSIdeal::getGamma() const { return gamma; }

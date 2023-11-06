@@ -12,6 +12,7 @@ set(SOURCE_FILES src/main.cpp
     src/grid.hpp src/grid.cpp
     src/boundary.hpp src/boundary.cpp
     src/problem.hpp src/problem.cpp
+    src/output_mgr.hpp src/output_mgr.cpp
     src/eos.hpp src/eos.cpp
     src/logger.hpp src/logger.cpp
 )

@@ -22,14 +22,16 @@ Problem::Problem(const std::string &name_, ProblemType type_,
       leftBoundaryType(leftBoundaryType_),
       topBoundaryType(topBoundaryType_),
       rightBoundaryType(rightBoundaryType_),
-      bottomBoundaryType(bottomBoundaryType_) {}
+      bottomBoundaryType(bottomBoundaryType_),
+      writer(name_) {}
 
 std::shared_ptr<GridALE> Problem::createALEGrid(int sizeX, int sizeY) const {
   return std::make_shared<GridALE>(sizeX, sizeY, xmin, xmax, ymin, ymax,
                                    uInitializer, vInitializer, rhoInitializer,
                                    pInitializer, eos);
 }
-void Problem::dumpGrid(std::shared_ptr<GridALE> grid) const {
+void Problem::dumpGrid(std::shared_ptr<GridALE> grid, double t) const {
+  std::string filename = std::format("{}_{:.3f}.txt", name, t);
   std::function<void(std::ofstream ofs)> outputF =
       [x = grid->x, y = grid->y, u = grid->u, v = grid->v, rho = grid->rho,
        p = grid->p, sizeX = grid->sizeX, sizeY = grid->sizeY,
@@ -54,6 +56,7 @@ void Problem::dumpGrid(std::shared_ptr<GridALE> grid) const {
           }
         }
       };
+  writer.dumpData(std::move(outputF), filename);
 }
 void Problem::createProblem() {
   createInitializers();

@@ -14,12 +14,15 @@ MethodALE::MethodALE(std::shared_ptr<Problem> problem, int sizeX, int sizeY,
       topBoundary(problem->topBoundaryType),
       rightBoundary(problem->rightBoundaryType),
       bottomBoundary(problem->bottomBoundaryType),
+      coordsConvergenceMax(nThreads),
+      pressureConvergenceMax(nThreads),
       lagrangianBoundarySync(nThreads, [this]() { resolveBoundaries(); }),
       lagrangianCoordsSync(nThreads),
       lagrangianPressureConvergenceSync(
           nThreads, [this]() { checkPressureConvergence(); }),
       lagrangianCoordsConvergenceSync(nThreads,
                                       [this]() { checkCoordsConvergence(); }),
+      stepSync(nThreads + 1),
       nThreads(nThreads) {
   initializeMethod();
   initializeThreads();
@@ -30,9 +33,27 @@ MethodALE::~MethodALE() {
     future.get();
   }
 }
-void MethodALE::calc(double dt) { this->dt = dt; }
+void MethodALE::calc(double dt) {
+  this->dt = dt;
+  updateStatus(Status::eStepStart);
+  stepSync.arrive_and_wait();
+}
 double MethodALE::calcdt() const { return 0.002; }
-void MethodALE::initializeMethod() {}
+void MethodALE::dumpGrid(std::shared_ptr<Problem> problem) const {
+  problem->dumpGrid(grid, t);
+}
+void MethodALE::initializeMethod() {
+  x_ = grid->x;
+  y_ = grid->y;
+  xNext = grid->x;
+  yNext = grid->y;
+  uNext = grid->u;
+  vNext = grid->v;
+  p_ = grid->p;
+  pNext = grid->p;
+
+  statusFutureGlobal = statusPromise.get_future();
+}
 void MethodALE::initializeThreads() {
   int ncols = 1, nrows = 1;
 
@@ -48,10 +69,10 @@ void MethodALE::initializeThreads() {
   double dj = static_cast<double>(grid->sizeY + 1) / static_cast<double>(nrows);
   threads.reserve(nThreads);
   for (int i = 0; i < nThreads; i++) {
-    int imin = di * (i / ncols);
-    int imax = i / ncols != ncols - 1 ? di * (i / ncols + 1) : grid->sizeX + 1;
+    int imin = di * (i / nrows);
+    int imax = i / nrows != ncols - 1 ? di * (i / nrows + 1) : grid->sizeX + 1;
     int jmin = dj * (i % nrows);
-    int jmax = i % nrows == nrows - 1 ? dj * (i % nrows + 1) : grid->sizeY + 1;
+    int jmax = i % nrows != nrows - 1 ? dj * (i % nrows + 1) : grid->sizeY + 1;
     threads.push_back(std::async(std::launch::async, &MethodALE::threadFunction,
                                  this, imin, imax, jmin, jmax, i));
   }
@@ -65,6 +86,7 @@ void MethodALE::threadFunction(const int imin, const int imax, const int jmin,
         return;
       case Status::eStepStart:
         parallelLagrangianPhase(imin, imax, jmin, jmax, threadNum);
+        stepSync.arrive_and_wait();
         break;
     }
   }
@@ -72,21 +94,25 @@ void MethodALE::threadFunction(const int imin, const int imax, const int jmin,
 void MethodALE::parallelLagrangianPhase(const int imin, const int imax,
                                         const int jmin, const int jmax,
                                         const int threadNum) {
-  // assign Next values to current ones
-  for (int i = imin; i < imax; i++) {
-    for (int j = jmin; j < jmax; j++) {
-      xNext[i][j] = grid->x[i][j];
-      yNext[i][j] = grid->y[i][j];
-      uNext[i][j] = grid->u[i][j];
-      vNext[i][j] = grid->v[i][j];
-      pNext[i][j] = grid->p[i][j];
-    }
-  }
   // Helper limits
   const double iminL = std::max(1, imin);
   const double imaxL = std::min(grid->sizeX, imax);
-  const double jminL = std::max(1, jmax);
+  const double jminL = std::max(1, jmin);
   const double jmaxL = std::min(grid->sizeY, jmax);
+  // assign Next values to current ones
+  for (int i = imin; i < imax; i++) {
+    for (int j = jmin; j < jmax; j++) {
+      xNext[i][j] = grid->x[i][j] + dt * grid->u[i][j];
+      yNext[i][j] = grid->y[i][j] + dt * grid->v[i][j];
+      uNext[i][j] = grid->u[i][j];
+      vNext[i][j] = grid->v[i][j];
+    }
+  }
+  for (int i = imin; i < imaxL; i++) {
+    for (int j = jmin; j < jmaxL; j++) {
+      pNext[i][j] = grid->p[i][j];
+    }
+  }
   do {
     // Step 1
     // Populate x_ and y_ with most recent guess
@@ -100,8 +126,8 @@ void MethodALE::parallelLagrangianPhase(const int imin, const int imax,
     do {
       // Step 2
       // Populate p_ with most recent guess
-      for (int i = imin; i < imax; i++) {
-        for (int j = jmin; j < jmax; j++) {
+      for (int i = imin; i < imaxL; i++) {
+        for (int j = jmin; j < jmaxL; j++) {
           p_[i][j] = pNext[i][j];
         }
       }
@@ -123,15 +149,15 @@ void MethodALE::parallelLagrangianPhase(const int imin, const int imax,
                grid->p[i - 1][j - 1] * (grid->x[i][j - 1] - grid->x[i - 1][j]) +
                grid->p[i][j - 1] * (grid->x[i + 1][j] - grid->x[i][j - 1]));
           double FxNext =
-              0.5 * (p_[i][j] * (y_[i + 1][j] - y_[i][j + 1]) +
-                     p_[i - 1][j] * (y_[i][j + 1] - y_[i - 1][j]) +
-                     p_[i - 1][j - 1] * (y_[i - 1][j] - y_[i][j - 1]) +
-                     p_[i][j - 1] * (y_[i][j - 1] - y_[i + 1][j]));
+              0.5 * (pNext[i][j] * (yNext[i + 1][j] - yNext[i][j + 1]) +
+                     pNext[i - 1][j] * (yNext[i][j + 1] - yNext[i - 1][j]) +
+                     pNext[i - 1][j - 1] * (yNext[i - 1][j] - yNext[i][j - 1]) +
+                     pNext[i][j - 1] * (yNext[i][j - 1] - yNext[i + 1][j]));
           double FyNext =
-              0.5 * (p_[i][j] * (x_[i][j + 1] - x_[i + 1][j]) +
-                     p_[i - 1][j] * (x_[i - 1][j] - x_[i][j + 1]) +
-                     p_[i - 1][j - 1] * (x_[i][j - 1] - x_[i - 1][j]) +
-                     p_[i][j - 1] * (x_[i + 1][j] - x_[i][j - 1]));
+              0.5 * (pNext[i][j] * (xNext[i][j + 1] - xNext[i + 1][j]) +
+                     pNext[i - 1][j] * (xNext[i - 1][j] - xNext[i][j + 1]) +
+                     pNext[i - 1][j - 1] * (xNext[i][j - 1] - xNext[i - 1][j]) +
+                     pNext[i][j - 1] * (xNext[i + 1][j] - xNext[i][j - 1]));
 
           uNext[i][j] = grid->u[i][j] +
                         dt * (epsu * Fx + (1 - epsu) * FxNext) / grid->m[i][j];
@@ -139,7 +165,7 @@ void MethodALE::parallelLagrangianPhase(const int imin, const int imax,
                         dt * (epsu * Fy + (1 - epsu) * FyNext) / grid->m[i][j];
         }
       }
-      // Wait for main thread to finish setting boundary conditions
+      // Wait for all threads to finish and set boundary conditions
       lagrangianBoundarySync.arrive_and_wait();
 
       // Step 4
@@ -168,7 +194,9 @@ void MethodALE::parallelLagrangianPhase(const int imin, const int imax,
           double rhoNext = grid->rho[i][j] * V / V_;
           double eNext = e + grid->p[i][j] / grid->rho[i][j] * (1 - V_ / V);
           pNext[i][j] = grid->eos->getp(rhoNext, eNext);
-          double dp = std::abs((p_[i][j] - pNext[i][j]) / p_[i][j]);
+          // pNext[i][j] = grid->eos->gets(grid->rho[i][j], grid->p[i][j]) *
+          //               std::pow(rhoNext, 1.4);
+          double dp = std::abs(p_[i][j] - pNext[i][j]);
           if (dp > pressureConvergenceMax[threadNum]) {
             pressureConvergenceMax[threadNum] = dp;
           }
@@ -183,8 +211,8 @@ void MethodALE::parallelLagrangianPhase(const int imin, const int imax,
     coordsConvergenceMax[threadNum] = 0.0;
     for (int i = imin; i < imax; i++) {
       for (int j = jmin; j < jmax; j++) {
-        double dx = std::abs((x_[i][j] - xNext[i][j]) / x_[i][j]);
-        double dy = std::abs((y_[i][j] - yNext[i][j]) / y_[i][j]);
+        double dx = std::abs(x_[i][j] - xNext[i][j]);
+        double dy = std::abs(y_[i][j] - yNext[i][j]);
         if (std::max(dx, dy) > coordsConvergenceMax[threadNum]) {
           coordsConvergenceMax[threadNum] = std::max(dx, dy);
         }
@@ -194,6 +222,26 @@ void MethodALE::parallelLagrangianPhase(const int imin, const int imax,
     // Sync and check the convergence of coordinates
     lagrangianCoordsConvergenceSync.arrive_and_wait();
   } while (!bCoordsConverged);
+
+  // Update densities, pressures and total energy
+  for (int i = imin; i < imaxL; i++) {
+    for (int j = jmin; j < jmaxL; j++) {
+      double V = grid->getV(i, j, grid->x, grid->y);
+      double V_ = grid->getV(i, j, xNext, yNext);
+      grid->rho[i][j] = grid->rho[i][j] * V / V_;
+
+      grid->p[i][j] = pNext[i][j];
+    }
+  }
+  // Update coordinates and velocities
+  for (int i = imin; i < imax; i++) {
+    for (int j = jmin; j < jmax; j++) {
+      grid->x[i][j] = xNext[i][j];
+      grid->y[i][j] = yNext[i][j];
+      grid->u[i][j] = uNext[i][j];
+      grid->v[i][j] = vNext[i][j];
+    }
+  }
 }
 void MethodALE::resolveBoundaries() {
   resolveLeftBoundary();
@@ -502,16 +550,35 @@ void MethodALE::resolveBottomBoundary() {
   }
 }
 void MethodALE::checkPressureConvergence() {
+  double maxp = 0.0;
+  for (int i = 0; i < grid->sizeX; i++) {
+    for (int j = 0; j < grid->sizeY; j++) {
+      if (std::abs(grid->p[i][j]) > maxp) {
+        maxp = std::abs(grid->p[i][j]);
+      }
+    }
+  }
   if (std::any_of(pressureConvergenceMax.begin(), pressureConvergenceMax.end(),
-                  [eps = this->eps1](double dp) { return dp > eps; })) {
+                  [eps = this->eps1 * maxp](double dp) { return dp > eps; })) {
     bPressureConverged = false;
     return;
   }
   bPressureConverged = true;
 }
 void MethodALE::checkCoordsConvergence() {
-  if (std::any_of(coordsConvergenceMax.begin(), pressureConvergenceMax.end(),
-                  [eps = this->eps2](double dx) { return dx > eps; })) {
+  double maxx = 0.0;
+  for (int i = 0; i < grid->sizeX + 1; i++) {
+    for (int j = 0; j < grid->sizeY + 1; j++) {
+      if (std::abs(grid->x[i][j]) > maxx) {
+        maxx = std::abs(grid->x[i][j]);
+      }
+      if (std::abs(grid->y[i][j]) > maxx) {
+        maxx = std::abs(grid->y[i][j]);
+      }
+    }
+  }
+  if (std::any_of(coordsConvergenceMax.begin(), coordsConvergenceMax.end(),
+                  [eps = this->eps2 * maxx](double dx) { return dx > eps; })) {
     bCoordsConverged = false;
     return;
   }

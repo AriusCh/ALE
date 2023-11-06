@@ -9,6 +9,7 @@ class EOS {
   virtual double getp(double rho, double e) const = 0;
   virtual double gete(double rho, double p) const = 0;
   virtual double getc(double rho, double p) const = 0;
+  virtual double gets(double rho, double p) const = 0;
 };
 
 class EOSIdeal : public EOS {
@@ -25,6 +26,7 @@ class EOSIdeal : public EOS {
   virtual double getp(double rho, double e) const override;
   virtual double gete(double rho, double p) const override;
   virtual double getc(double rho, double p) const override;
+  virtual double gets(double rho, double p) const override;
 
   double getGamma() const;
 

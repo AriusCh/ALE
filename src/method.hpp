@@ -26,6 +26,8 @@ class Method {
   virtual void calc(double dt) = 0;
   virtual double calcdt() const = 0;
 
+  virtual void dumpGrid(std::shared_ptr<Problem> problem) const = 0;
+
  public:
   double t;
   double CFL;
@@ -39,13 +41,15 @@ class Method {
 class MethodALE : public Method {
  public:
   MethodALE(std::shared_ptr<Problem> problem, int sizeX, int sizeY, double CFL,
-            int nThreads = 1);
+            int nThreads);
 
   virtual ~MethodALE();
 
  public:
-  virtual void calc(double dt);
-  virtual double calcdt() const;
+  virtual void calc(double dt) override;
+  virtual double calcdt() const override;
+
+  virtual void dumpGrid(std::shared_ptr<Problem> problem) const override;
 
  private:
   void initializeMethod();
@@ -99,9 +103,10 @@ class MethodALE : public Method {
   std::barrier<> lagrangianCoordsSync;
   std::barrier<std::function<void()>> lagrangianPressureConvergenceSync;
   std::barrier<std::function<void()>> lagrangianCoordsConvergenceSync;
+  std::barrier<> stepSync;
 
-  double epsx = 0.5;
-  double epsu = 0.5;
+  double epsx = 0.3;
+  double epsu = 0.3;
 
   const double eps1 = 1e-4;
   const double eps2 = 1e-6;

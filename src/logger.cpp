@@ -22,12 +22,16 @@ void Logger::Log(std::string message, LogLevel logLevel) const {
   switch (logLevel) {
     case LogLevel::eInfo:
       ostream << "INFO";
+      break;
     case LogLevel::eGeneral:
       ostream << "GENERAL";
+      break;
     case LogLevel::eWarning:
       ostream << "WARNING";
+      break;
     case LogLevel::eError:
       ostream << "ERROR";
+      break;
   }
   ostream << "] " << message << std::endl;
 }
