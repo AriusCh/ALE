@@ -40,8 +40,8 @@ class Method {
 
 class MethodALE : public Method {
  public:
-  MethodALE(std::shared_ptr<Problem> problem, int sizeX, int sizeY, double CFL,
-            int nThreads);
+  MethodALE(std::shared_ptr<Problem> problem, int sizeX, int sizeY, double epsx,
+            double epsu, double CFL, int nThreads);
 
   virtual ~MethodALE();
 
@@ -80,6 +80,7 @@ class MethodALE : public Method {
   std::vector<std::vector<double>> yNext;
   std::vector<std::vector<double>> uNext;
   std::vector<std::vector<double>> vNext;
+  std::vector<std::vector<double>> rhoNext;
   std::vector<std::vector<double>> p_;
   std::vector<std::vector<double>> pNext;
 
@@ -99,14 +100,16 @@ class MethodALE : public Method {
   bool bPressureConverged = false;
   bool bCoordsConverged = false;
 
+  std::barrier<> statusSync;
+  std::barrier<> stepSync;
   std::barrier<std::function<void()>> lagrangianBoundarySync;
   std::barrier<> lagrangianCoordsSync;
   std::barrier<std::function<void()>> lagrangianPressureConvergenceSync;
   std::barrier<std::function<void()>> lagrangianCoordsConvergenceSync;
-  std::barrier<> stepSync;
+  std::barrier<> lagrangianUpdateNodesSync;
 
-  double epsx = 0.3;
-  double epsu = 0.3;
+  double epsx;
+  double epsu;
 
   const double eps1 = 1e-4;
   const double eps2 = 1e-6;

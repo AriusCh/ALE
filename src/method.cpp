@@ -2,12 +2,13 @@
 
 #include <cassert>
 #include <cmath>
+#include <format>
 
 Method::Method(MethodType type, double tmin, double tmax, double CFL)
     : t(tmin), CFL(CFL), tmin(tmin), tmax(tmax), type(type) {}
 
 MethodALE::MethodALE(std::shared_ptr<Problem> problem, int sizeX, int sizeY,
-                     double CFL, int nThreads)
+                     double epsx, double epsu, double CFL, int nThreads)
     : Method(MethodType::eALE, problem->tmin, problem->tmax, CFL),
       grid(problem->createALEGrid(sizeX, sizeY)),
       leftBoundary(problem->leftBoundaryType),
@@ -16,13 +17,17 @@ MethodALE::MethodALE(std::shared_ptr<Problem> problem, int sizeX, int sizeY,
       bottomBoundary(problem->bottomBoundaryType),
       coordsConvergenceMax(nThreads),
       pressureConvergenceMax(nThreads),
+      statusSync(nThreads + 1),
+      stepSync(nThreads + 1),
       lagrangianBoundarySync(nThreads, [this]() { resolveBoundaries(); }),
       lagrangianCoordsSync(nThreads),
       lagrangianPressureConvergenceSync(
           nThreads, [this]() { checkPressureConvergence(); }),
       lagrangianCoordsConvergenceSync(nThreads,
                                       [this]() { checkCoordsConvergence(); }),
-      stepSync(nThreads + 1),
+      lagrangianUpdateNodesSync(nThreads),
+      epsx(epsx),
+      epsu(epsu),
       nThreads(nThreads) {
   initializeMethod();
   initializeThreads();
@@ -38,7 +43,28 @@ void MethodALE::calc(double dt) {
   updateStatus(Status::eStepStart);
   stepSync.arrive_and_wait();
 }
-double MethodALE::calcdt() const { return 0.002; }
+double MethodALE::calcdt() const {
+  double dt = tmax - tmin;
+  for (int i = 0; i < grid->sizeX; i++) {
+    for (int j = 0; j < grid->sizeY; j++) {
+      double dx = grid->x[i + 1][j] - grid->x[i][j];
+      double dy = grid->y[i][j + 1] - grid->y[i][j];
+      double u = 0.25 * (grid->u[i + 1][j] + grid->u[i + 1][j + 1] +
+                         grid->u[i][j + 1] + grid->u[i][j]);
+      double v = 0.25 * (grid->v[i + 1][j] + grid->v[i + 1][j + 1] +
+                         grid->v[i][j + 1] + grid->v[i][j]);
+      double c = grid->eos->getc(grid->rho[i][j], grid->p[i][j]);
+      double dt1 = dx / (c + std::abs(u));
+      double dt2 = dy / (c + std::abs(v));
+      if (std::min(dt1, dt2) < dt) {
+        dt = std::min(dt1, dt2);
+      }
+    }
+  }
+  return CFL * dt;
+
+  return 0.001;
+}
 void MethodALE::dumpGrid(std::shared_ptr<Problem> problem) const {
   problem->dumpGrid(grid, t);
 }
@@ -49,6 +75,7 @@ void MethodALE::initializeMethod() {
   yNext = grid->y;
   uNext = grid->u;
   vNext = grid->v;
+  rhoNext = grid->rho;
   p_ = grid->p;
   pNext = grid->p;
 
@@ -81,6 +108,7 @@ void MethodALE::threadFunction(const int imin, const int imax, const int jmin,
                                const int jmax, const int threadNum) {
   while (true) {
     std::shared_future<Status> statusFuture(statusFutureGlobal);
+    statusSync.arrive_and_wait();
     switch (statusFuture.get()) {
       case Status::eExit:
         return;
@@ -100,6 +128,7 @@ void MethodALE::parallelLagrangianPhase(const int imin, const int imax,
   const double jminL = std::max(1, jmin);
   const double jmaxL = std::min(grid->sizeY, jmax);
   // assign Next values to current ones
+  auto start = std::chrono::high_resolution_clock::now();
   for (int i = imin; i < imax; i++) {
     for (int j = jmin; j < jmax; j++) {
       xNext[i][j] = grid->x[i][j] + dt * grid->u[i][j];
@@ -110,11 +139,20 @@ void MethodALE::parallelLagrangianPhase(const int imin, const int imax,
   }
   for (int i = imin; i < imaxL; i++) {
     for (int j = jmin; j < jmaxL; j++) {
+      rhoNext[i][j] = grid->rho[i][j];
       pNext[i][j] = grid->p[i][j];
     }
   }
+  if (threadNum == 0) {
+    auto end = std::chrono::high_resolution_clock::now();
+    std::string message =
+        std::format("THREAD_{} ASSIGN TIME: {:.6f}", threadNum,
+                    std::chrono::duration<double>(end - start).count());
+    logger.Log(message);
+  }
   do {
     // Step 1
+    start = std::chrono::high_resolution_clock::now();
     // Populate x_ and y_ with most recent guess
     for (int i = imin; i < imax; i++) {
       for (int j = jmin; j < jmax; j++) {
@@ -122,17 +160,33 @@ void MethodALE::parallelLagrangianPhase(const int imin, const int imax,
         y_[i][j] = yNext[i][j];
       }
     }
+    if (threadNum == 0) {
+      auto end = std::chrono::high_resolution_clock::now();
+      std::string message =
+          std::format("THREAD_{} STEP 1 TIME: {:.6f}", threadNum,
+                      std::chrono::duration<double>(end - start).count());
+      logger.Log(message);
+    }
 
     do {
       // Step 2
+      start = std::chrono::high_resolution_clock::now();
       // Populate p_ with most recent guess
       for (int i = imin; i < imaxL; i++) {
         for (int j = jmin; j < jmaxL; j++) {
           p_[i][j] = pNext[i][j];
         }
       }
+      if (threadNum == 0) {
+        auto end = std::chrono::high_resolution_clock::now();
+        std::string message =
+            std::format("THREAD_{} STEP 2 TIME: {:.6f}", threadNum,
+                        std::chrono::duration<double>(end - start).count());
+        logger.Log(message);
+      }
 
       // Step 3
+      start = std::chrono::high_resolution_clock::now();
       // Calculate velocity components uNext, vNext
       for (int i = iminL; i < imaxL; i++) {
         for (int j = jminL; j < jmaxL; j++) {
@@ -165,11 +219,27 @@ void MethodALE::parallelLagrangianPhase(const int imin, const int imax,
                         dt * (epsu * Fy + (1 - epsu) * FyNext) / grid->m[i][j];
         }
       }
+      if (threadNum == 0) {
+        auto end = std::chrono::high_resolution_clock::now();
+        std::string message =
+            std::format("THREAD_{} STEP 3 TIME: {:.6f}", threadNum,
+                        std::chrono::duration<double>(end - start).count());
+        logger.Log(message);
+      }
       // Wait for all threads to finish and set boundary conditions
+      start = std::chrono::high_resolution_clock::now();
       lagrangianBoundarySync.arrive_and_wait();
+      if (threadNum == 0) {
+        auto end = std::chrono::high_resolution_clock::now();
+        std::string message =
+            std::format("THREAD_{} BOUNDARY SYNC TIME: {:.6f}", threadNum,
+                        std::chrono::duration<double>(end - start).count());
+        logger.Log(message);
+      }
 
       // Step 4
       // Calculate coordinates of vertex (xNext, yNext)
+      start = std::chrono::high_resolution_clock::now();
       for (int i = imin; i < imax; i++) {
         for (int j = jmin; j < jmax; j++) {
           xNext[i][j] = grid->x[i][j] + dt * (epsx * grid->u[i][j] +
@@ -178,12 +248,28 @@ void MethodALE::parallelLagrangianPhase(const int imin, const int imax,
                                               (1.0 - epsx) * vNext[i][j]);
         }
       }
+      if (threadNum == 0) {
+        auto end = std::chrono::high_resolution_clock::now();
+        std::string message =
+            std::format("THREAD_{} STEP 4 TIME: {:.6f}", threadNum,
+                        std::chrono::duration<double>(end - start).count());
+        logger.Log(message);
+      }
 
       // Wait for all threads
+      start = std::chrono::high_resolution_clock::now();
       lagrangianCoordsSync.arrive_and_wait();
+      if (threadNum == 0) {
+        auto end = std::chrono::high_resolution_clock::now();
+        std::string message =
+            std::format("THREAD_{} COORDS SYNC TIME: {:.6f}", threadNum,
+                        std::chrono::duration<double>(end - start).count());
+        logger.Log(message);
+      }
 
       // Step 5
       // Update pressures pNext
+      start = std::chrono::high_resolution_clock::now();
       pressureConvergenceMax[threadNum] = 0.0;
       for (int i = imin; i < imaxL; i++) {
         for (int j = jmin; j < jmaxL; j++) {
@@ -191,9 +277,9 @@ void MethodALE::parallelLagrangianPhase(const int imin, const int imax,
           double V_ = grid->getV(i, j, xNext, yNext);
 
           double e = grid->eos->gete(grid->rho[i][j], grid->p[i][j]);
-          double rhoNext = grid->rho[i][j] * V / V_;
+          rhoNext[i][j] = grid->rho[i][j] * V / V_;
           double eNext = e + grid->p[i][j] / grid->rho[i][j] * (1 - V_ / V);
-          pNext[i][j] = grid->eos->getp(rhoNext, eNext);
+          pNext[i][j] = grid->eos->getp(rhoNext[i][j], eNext);
           // pNext[i][j] = grid->eos->gets(grid->rho[i][j], grid->p[i][j]) *
           //               std::pow(rhoNext, 1.4);
           double dp = std::abs(p_[i][j] - pNext[i][j]);
@@ -202,12 +288,28 @@ void MethodALE::parallelLagrangianPhase(const int imin, const int imax,
           }
         }
       }
+      if (threadNum == 0) {
+        auto end = std::chrono::high_resolution_clock::now();
+        std::string message =
+            std::format("THREAD_{} STEP 5 TIME: {:.6f}", threadNum,
+                        std::chrono::duration<double>(end - start).count());
+        logger.Log(message);
+      }
 
       // Sync and check the convergence of pressures
+      start = std::chrono::high_resolution_clock::now();
       lagrangianPressureConvergenceSync.arrive_and_wait();
+      if (threadNum == 0) {
+        auto end = std::chrono::high_resolution_clock::now();
+        std::string message = std::format(
+            "THREAD_{} PRESSURE CONVERGENCE SYNC TIME: {:.6f}", threadNum,
+            std::chrono::duration<double>(end - start).count());
+        logger.Log(message);
+      }
     } while (!bPressureConverged);
 
     // Calc max dx
+    start = std::chrono::high_resolution_clock::now();
     coordsConvergenceMax[threadNum] = 0.0;
     for (int i = imin; i < imax; i++) {
       for (int j = jmin; j < jmax; j++) {
@@ -218,17 +320,31 @@ void MethodALE::parallelLagrangianPhase(const int imin, const int imax,
         }
       }
     }
+    if (threadNum == 0) {
+      auto end = std::chrono::high_resolution_clock::now();
+      std::string message =
+          std::format("THREAD_{} COORDS CONVERGENCE TIME: {:.6f}", threadNum,
+                      std::chrono::duration<double>(end - start).count());
+      logger.Log(message);
+    }
 
     // Sync and check the convergence of coordinates
+    start = std::chrono::high_resolution_clock::now();
     lagrangianCoordsConvergenceSync.arrive_and_wait();
+    if (threadNum == 0) {
+      auto end = std::chrono::high_resolution_clock::now();
+      std::string message = std::format(
+          "THREAD_{} COORDS CONVERGENCE SYNC TIME: {:.6f}", threadNum,
+          std::chrono::duration<double>(end - start).count());
+      logger.Log(message);
+    }
   } while (!bCoordsConverged);
 
   // Update densities, pressures and total energy
+  start = std::chrono::high_resolution_clock::now();
   for (int i = imin; i < imaxL; i++) {
     for (int j = jmin; j < jmaxL; j++) {
-      double V = grid->getV(i, j, grid->x, grid->y);
-      double V_ = grid->getV(i, j, xNext, yNext);
-      grid->rho[i][j] = grid->rho[i][j] * V / V_;
+      grid->rho[i][j] = rhoNext[i][j];
 
       grid->p[i][j] = pNext[i][j];
     }
@@ -241,6 +357,13 @@ void MethodALE::parallelLagrangianPhase(const int imin, const int imax,
       grid->u[i][j] = uNext[i][j];
       grid->v[i][j] = vNext[i][j];
     }
+  }
+  if (threadNum == 0) {
+    auto end = std::chrono::high_resolution_clock::now();
+    std::string message =
+        std::format("THREAD_{} UPDATE TIME: {:.6f}", threadNum,
+                    std::chrono::duration<double>(end - start).count());
+    logger.Log(message);
   }
 }
 void MethodALE::resolveBoundaries() {
@@ -585,6 +708,7 @@ void MethodALE::checkCoordsConvergence() {
   bCoordsConverged = true;
 }
 void MethodALE::updateStatus(Status newStatus) {
+  statusSync.arrive_and_wait();
   std::promise<Status> newPromise;
   statusFutureGlobal = newPromise.get_future();
   statusPromise.set_value(newStatus);

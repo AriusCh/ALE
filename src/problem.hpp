@@ -12,7 +12,7 @@
 #include "logger.hpp"
 #include "output_mgr.hpp"
 
-enum class ProblemType { eRiemannProblem1Dx };
+enum class ProblemType { eRiemannProblem1Dx, eCircularRiemannProblem };
 
 enum class AxisymmetryType { eNone, eCylindrical };
 
@@ -82,6 +82,9 @@ class RiemannProblem1Dx : public Problem {
                     double tmax, double rhoL, double uL, double pL, double rhoR,
                     double uR, double pR, double spl, double gamma);
 
+ public:
+  virtual void dumpGrid(std::shared_ptr<GridALE> grid, double t) const override;
+
  protected:
   virtual void createInitializers() override;
   virtual void createEOS() override;
@@ -89,6 +92,28 @@ class RiemannProblem1Dx : public Problem {
  private:
   double rhoL, pL, uL;
   double rhoR, pR, uR;
+  double spl;
+  double gamma;
+};
+
+class CircularRiemannProblem : public Problem {
+ public:
+  CircularRiemannProblem(const std::string &name, double xmin, double xmax,
+                         double ymin, double ymax, double tmax, double rhoL,
+                         double uL, double vL, double pL, double rhoR,
+                         double uR, double vR, double pR, double spl,
+                         double gamma);
+
+ public:
+  virtual void dumpGrid(std::shared_ptr<GridALE> grid, double t) const override;
+
+ protected:
+  virtual void createInitializers() override;
+  virtual void createEOS() override;
+
+ private:
+  double uL, vL, rhoL, pL;
+  double uR, vR, rhoR, pR;
   double spl;
   double gamma;
 };

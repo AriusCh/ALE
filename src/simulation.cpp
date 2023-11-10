@@ -12,10 +12,9 @@ void Simulation::run() {
   int iterationNum = 0;
   logSimulationStart();
   method->dumpGrid(problem);
+  double dt = method->calcdt();
   auto simStart = std::chrono::high_resolution_clock::now();
   while (t < method->tmax) {
-    double dt = method->calcdt();
-
     if (t + dt > method->tmax) {
       dt = method->tmax - t;
     }
