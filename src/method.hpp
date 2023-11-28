@@ -9,7 +9,7 @@
 
 enum class MethodType { eALE };
 
-enum class Status { eExit, eStepStart };
+enum class Status { eExit, eStepStart, eCalcdt };
 
 class Method {
  public:
@@ -59,6 +59,8 @@ class MethodALE : public Method {
                       const int jmax, const int threadNum);
   void parallelLagrangianPhase(const int imin, const int imax, const int jmin,
                                const int jmax, const int threadNum);
+  void threadCalcdt(const int imin, const int imax, const int jmin,
+                    const int jmax, const int threadNum) const;
 
   void resolveBoundaries();
   void resolveLeftBoundary();
@@ -69,7 +71,7 @@ class MethodALE : public Method {
   void checkPressureConvergence();
   void checkCoordsConvergence();
 
-  void updateStatus(Status newStatus);
+  void updateStatus(Status newStatus) const;
 
  private:
   std::shared_ptr<GridALE> grid;
@@ -84,6 +86,7 @@ class MethodALE : public Method {
   std::vector<std::vector<double>> p_;
   std::vector<std::vector<double>> pNext;
 
+  mutable std::vector<double> dts;
   double dt;
 
   const BoundaryType leftBoundary;
@@ -91,8 +94,8 @@ class MethodALE : public Method {
   const BoundaryType rightBoundary;
   const BoundaryType bottomBoundary;
 
-  std::promise<Status> statusPromise;
-  std::shared_future<Status> statusFutureGlobal;
+  mutable std::promise<Status> statusPromise;
+  mutable std::shared_future<Status> statusFutureGlobal;
 
   std::vector<double> coordsConvergenceMax;
   std::vector<double> pressureConvergenceMax;
@@ -100,8 +103,9 @@ class MethodALE : public Method {
   bool bPressureConverged = false;
   bool bCoordsConverged = false;
 
-  std::barrier<> statusSync;
+  mutable std::barrier<> statusSync;
   std::barrier<> stepSync;
+  mutable std::barrier<> calcdtSync;
   std::barrier<std::function<void()>> lagrangianBoundarySync;
   std::barrier<> lagrangianCoordsSync;
   std::barrier<std::function<void()>> lagrangianPressureConvergenceSync;

@@ -11,6 +11,7 @@ MethodALE::MethodALE(std::shared_ptr<Problem> problem, int sizeX, int sizeY,
                      double epsx, double epsu, double CFL, int nThreads)
     : Method(MethodType::eALE, problem->tmin, problem->tmax, CFL),
       grid(problem->createALEGrid(sizeX, sizeY)),
+      dts(nThreads),
       leftBoundary(problem->leftBoundaryType),
       topBoundary(problem->topBoundaryType),
       rightBoundary(problem->rightBoundaryType),
@@ -19,6 +20,7 @@ MethodALE::MethodALE(std::shared_ptr<Problem> problem, int sizeX, int sizeY,
       pressureConvergenceMax(nThreads),
       statusSync(nThreads + 1),
       stepSync(nThreads + 1),
+      calcdtSync(nThreads + 1),
       lagrangianBoundarySync(nThreads, [this]() { resolveBoundaries(); }),
       lagrangianCoordsSync(nThreads),
       lagrangianPressureConvergenceSync(
@@ -44,26 +46,10 @@ void MethodALE::calc(double dt) {
   stepSync.arrive_and_wait();
 }
 double MethodALE::calcdt() const {
-  double dt = tmax - tmin;
-  for (int i = 0; i < grid->sizeX; i++) {
-    for (int j = 0; j < grid->sizeY; j++) {
-      double dx = grid->x[i + 1][j] - grid->x[i][j];
-      double dy = grid->y[i][j + 1] - grid->y[i][j];
-      double u = 0.25 * (grid->u[i + 1][j] + grid->u[i + 1][j + 1] +
-                         grid->u[i][j + 1] + grid->u[i][j]);
-      double v = 0.25 * (grid->v[i + 1][j] + grid->v[i + 1][j + 1] +
-                         grid->v[i][j + 1] + grid->v[i][j]);
-      double c = grid->eos->getc(grid->rho[i][j], grid->p[i][j]);
-      double dt1 = dx / (c + std::abs(u));
-      double dt2 = dy / (c + std::abs(v));
-      if (std::min(dt1, dt2) < dt) {
-        dt = std::min(dt1, dt2);
-      }
-    }
-  }
+  updateStatus(Status::eCalcdt);
+  calcdtSync.arrive_and_wait();
+  double dt = *std::min_element(dts.begin(), dts.end());
   return CFL * dt;
-
-  return 0.001;
 }
 void MethodALE::dumpGrid(std::shared_ptr<Problem> problem) const {
   problem->dumpGrid(grid, t);
@@ -115,6 +101,10 @@ void MethodALE::threadFunction(const int imin, const int imax, const int jmin,
       case Status::eStepStart:
         parallelLagrangianPhase(imin, imax, jmin, jmax, threadNum);
         stepSync.arrive_and_wait();
+        break;
+      case Status::eCalcdt:
+        threadCalcdt(imin, imax, jmin, jmax, threadNum);
+        calcdtSync.arrive_and_wait();
         break;
     }
   }
@@ -364,6 +354,28 @@ void MethodALE::parallelLagrangianPhase(const int imin, const int imax,
         std::format("THREAD_{} UPDATE TIME: {:.6f}", threadNum,
                     std::chrono::duration<double>(end - start).count());
     logger.Log(message);
+  }
+}
+void MethodALE::threadCalcdt(const int imin, const int imax, const int jmin,
+                             const int jmax, const int threadNum) const {
+  const double imaxL = std::min(grid->sizeX, imax);
+  const double jmaxL = std::min(grid->sizeY, jmax);
+  dts[threadNum] = tmax - tmin;
+  for (int i = imin; i < imaxL; i++) {
+    for (int j = jmin; j < jmaxL; j++) {
+      double dx = grid->x[i + 1][j] - grid->x[i][j];
+      double dy = grid->y[i][j + 1] - grid->y[i][j];
+      double u = 0.25 * (grid->u[i + 1][j] + grid->u[i + 1][j + 1] +
+                         grid->u[i][j + 1] + grid->u[i][j]);
+      double v = 0.25 * (grid->v[i + 1][j] + grid->v[i + 1][j + 1] +
+                         grid->v[i][j + 1] + grid->v[i][j]);
+      double c = grid->eos->getc(grid->rho[i][j], grid->p[i][j]);
+      double dt1 = dx / (c + std::abs(u));
+      double dt2 = dy / (c + std::abs(v));
+      if (std::min(dt1, dt2) < dts[threadNum]) {
+        dts[threadNum] = std::min(dt1, dt2);
+      }
+    }
   }
 }
 void MethodALE::resolveBoundaries() {
@@ -707,7 +719,7 @@ void MethodALE::checkCoordsConvergence() {
   }
   bCoordsConverged = true;
 }
-void MethodALE::updateStatus(Status newStatus) {
+void MethodALE::updateStatus(Status newStatus) const {
   statusSync.arrive_and_wait();
   std::promise<Status> newPromise;
   statusFutureGlobal = newPromise.get_future();

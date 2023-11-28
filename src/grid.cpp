@@ -1,6 +1,7 @@
 #include "grid.hpp"
 
 #include <cmath>
+#include <exception>
 
 GridALE::GridALE(int sizeX_, int sizeY_, double xmin, double xmax, double ymin,
                  double ymax, std::function<double(double, double)> uInit,
@@ -59,6 +60,10 @@ double GridALE::getV(int i, int j, std::vector<std::vector<double>> &x,
          xijp = x[i][j + 1];
   double yij = y[i][j], yipj = y[i + 1][j], yipjp = y[i + 1][j + 1],
          yijp = y[i][j + 1];
+  if (0.5 * ((xij - xipjp) * (yipj - yijp) + (xipj - xijp) * (yipjp - yij)) <
+      0.) {
+    throw std::runtime_error("NEGATIVE VOLUME");
+  }
   return 0.5 * ((xij - xipjp) * (yipj - yijp) + (xipj - xijp) * (yipjp - yij));
 }
 void GridALE::populateCellEnergy() {

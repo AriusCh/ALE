@@ -236,3 +236,15 @@ std::shared_ptr<Problem> sodTest = std::make_shared<RiemannProblem1Dx>(
 std::shared_ptr<Problem> blastWave = std::make_shared<CircularRiemannProblem>(
     "blastWave", -1.0, 1.0, -1.0, 1.0, 0.25, 1.0, 0.0, 0.0, 1.0, 0.125, 0.0,
     0.0, 0.1, 0.4, 1.4);
+std::shared_ptr<Problem> toro1x = std::make_shared<RiemannProblem1Dx>(
+    "toro1x", 0.0, 1.0, 0.2, 1.0, 0.75, 1.0, 0.125, 0.0, 0.1, 0.3, 1.4);
+std::shared_ptr<Problem> toro2x = std::make_shared<RiemannProblem1Dx>(
+    "toro2x", 0.0, 1.0, 0.15, 1.0, -2.0, 0.4, 1.0, 2.0, 0.4, 0.5, 1.4);
+std::shared_ptr<Problem> toro3x = std::make_shared<RiemannProblem1Dx>(
+    "toro3x", 0.0, 1.0, 0.012, 1.0, 0.0, 1000.0, 1.0, 0.0, 0.01, 0.5, 1.4);
+std::shared_ptr<Problem> toro4x = std::make_shared<RiemannProblem1Dx>(
+    "toro4x", 0.0, 1.0, 0.035, 5.99924, 19.5975, 460.894, 5.99242, -6.19633,
+    46.0950, 0.4, 1.4);
+std::shared_ptr<Problem> toro5x = std::make_shared<RiemannProblem1Dx>(
+    "toro5x", 0.0, 1.0, 0.012, 1.0, -19.59745, 1000.0, 1.0, -19.59745, 0.01, 0.8,
+    1.4);
