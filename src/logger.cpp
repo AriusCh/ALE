@@ -12,7 +12,7 @@ Logger::Logger() {
 }
 Logger::Logger(LogLevel minLogLevel_) : minLogLevel(minLogLevel_) {}
 
-void Logger::Log(std::string message, LogLevel logLevel) const {
+void Logger::log(std::string message, LogLevel logLevel) const {
   if (logLevel < minLogLevel) {
     return;
   }

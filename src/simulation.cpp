@@ -11,7 +11,7 @@ void Simulation::run() {
 
   int iterationNum = 0;
   logSimulationStart();
-  method->dumpGrid(problem);
+  // method->dumpGrid(problem);
   double dt = method->calcdt();
   auto simStart = std::chrono::high_resolution_clock::now();
   while (t < method->tmax) {
@@ -38,7 +38,7 @@ void Simulation::run() {
                                     simStart)
           .count();
   logSimulationEnd(simulationTime);
-  method->dumpGrid(problem);
+  // method->dumpGrid(problem);
 }
 
 void Simulation::logSuccessfulIteration(int iterationNumber, double t,
@@ -47,17 +47,17 @@ void Simulation::logSuccessfulIteration(int iterationNumber, double t,
       "PROBLEM: {} ITERATION: {:6} t: {:6.6e} dt: {:6.6e} STEP TIME: {:.6f}",
       problem->name, iterationNumber, t, dt, calcTime);
 
-  logger.Log(message, LogLevel::eGeneral);
+  logger.log(message, LogLevel::eGeneral);
 }
 void Simulation::logSimulationStart() const {
   std::string message =
       std::format("PROBLEM: {} STARTING SIMULATION", problem->name);
 
-  logger.Log(message, LogLevel::eGeneral);
+  logger.log(message, LogLevel::eGeneral);
 }
 void Simulation::logSimulationEnd(double simTime) const {
   std::string message = std::format(
       "PROBLEM: {} SIMULATION COMPLETE. TIME: {:.6f}", problem->name, simTime);
 
-  logger.Log(message, LogLevel::eGeneral);
+  logger.log(message, LogLevel::eGeneral);
 }

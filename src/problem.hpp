@@ -12,18 +12,18 @@
 #include "logger.hpp"
 #include "output_mgr.hpp"
 
-enum class ProblemType { eRiemannProblem1Dx, eCircularRiemannProblem };
-
-enum class AxisymmetryType { eNone, eCylindrical };
-
-/*  */
 class Problem {
  public:
-  Problem(const std::string &name_, ProblemType type_, AxisymmetryType symType_,
-          double xmin_, double xmax_, double ymin_, double ymax_, double tmin_,
-          double tmax_, BoundaryType leftBoundaryType_,
-          BoundaryType topBoundaryType_, BoundaryType rightBoundaryType_,
-          BoundaryType bottomBoundaryType_);
+  Problem(
+      const std::string &name_, double xmin_, double xmax_, double ymin_,
+      double ymax_, double tmin_, double tmax_, BoundaryType leftBoundaryType_,
+      BoundaryType topBoundaryType_, BoundaryType rightBoundaryType_,
+      BoundaryType bottomBoundaryType_,
+      std::function<double(double x, double y)> uInitializer_,
+      std::function<double(double x, double y)> vInitializer_,
+      std::function<double(double x, double y)> rhoInitializer_,
+      std::function<double(double x, double y)> pInitializer_,
+      std::function<std::shared_ptr<EOS>(double x, double y)> eosInitializer_);
   Problem(Problem const &rhs) = default;
   Problem(Problem &&rhs) = default;
 
@@ -33,22 +33,10 @@ class Problem {
   virtual ~Problem() = default;
 
  public:
-  virtual std::shared_ptr<GridALE> createALEGrid(
-      int sizeX,
-      int sizeY) const;  // Create a rectangle ALE grid
-  virtual void dumpGrid(std::shared_ptr<GridALE> grid,
-                        double t) const;  // Dump grid as 2D
-
  protected:
-  void createProblem();  // Function that calls all create functions
-  virtual void createInitializers() = 0;  // create initial condition function
-  virtual void createEOS() = 0;           // create equation of state
-
  private:
  public:
-  const std::string name;         // Problem name
-  const ProblemType type;         // Problem type
-  const AxisymmetryType symType;  // Problem axisymmetry
+  const std::string name;  // Problem name
 
   const double xmin, xmax, ymin,
       ymax;                 // Starting rectangle simulation box boundaries
@@ -58,20 +46,20 @@ class Problem {
   const BoundaryType rightBoundaryType;   // Right boundary type
   const BoundaryType bottomBoundaryType;  // Bottom boundary type
 
-  std::function<double(double x, double y)>
+  const std::function<double(double x, double y)>
       uInitializer;  // Function that returns u initial value depending on the
                      // coords
-  std::function<double(double x, double y)>
+  const std::function<double(double x, double y)>
       vInitializer;  // Function that returns v initial value depending on the
                      // coords
-  std::function<double(double x, double y)>
+  const std::function<double(double x, double y)>
       rhoInitializer;  // Function that returns rho initial value
-  std::function<double(double x, double y)>
-      pInitializer;          // Function that returns p initial value
-  std::shared_ptr<EOS> eos;  // EOS to use in the grid
+  const std::function<double(double x, double y)>
+      pInitializer;  // Function that returns p initial value
+  const std::function<std::shared_ptr<EOS>(double x, double y)>
+      eosInitializer;  // Function that returns EOSes to use in the grid
 
  protected:
-  Writer writer;
   Logger logger;
 };
 
@@ -83,39 +71,21 @@ class RiemannProblem1Dx : public Problem {
                     double uR, double pR, double spl, double gamma);
 
  public:
-  virtual void dumpGrid(std::shared_ptr<GridALE> grid, double t) const override;
-
  protected:
-  virtual void createInitializers() override;
-  virtual void createEOS() override;
-
  private:
-  double rhoL, pL, uL;
-  double rhoR, pR, uR;
-  double spl;
-  double gamma;
 };
 
-class CircularRiemannProblem : public Problem {
- public:
-  CircularRiemannProblem(const std::string &name, double xmin, double xmax,
-                         double ymin, double ymax, double tmax, double rhoL,
-                         double uL, double vL, double pL, double rhoR,
-                         double uR, double vR, double pR, double spl,
-                         double gamma);
-
- public:
-  virtual void dumpGrid(std::shared_ptr<GridALE> grid, double t) const override;
-
- protected:
-  virtual void createInitializers() override;
-  virtual void createEOS() override;
-
- private:
-  double uL, vL, rhoL, pL;
-  double uR, vR, rhoR, pR;
-  double spl;
-  double gamma;
-};
+// class CircularRiemannProblem : public Problem {
+//  public:
+//   CircularRiemannProblem(const std::string &name, double xmin, double xmax,
+//                          double ymin, double ymax, double tmax, double rhoL,
+//                          double uL, double vL, double pL, double rhoR,
+//                          double uR, double vR, double pR, double spl,
+//                          double gamma);
+//
+//  public:
+//
+//  private:
+// };
 
 #endif

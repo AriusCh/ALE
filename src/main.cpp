@@ -1,20 +1,33 @@
+#include <mpi.h>
+
+#include <Eigen/Core>
+#include <format>
 #include <iostream>
 #include <memory>
+#include <string>
 
+#include "logger.hpp"
 #include "method.hpp"
 #include "problem.hpp"
 #include "simulation.hpp"
 
-#define PROBLEM toro3x;
-
 int main([[maybe_unused]] int argc, [[maybe_unused]] char *argv[]) {
-  extern std::shared_ptr<Problem> PROBLEM;
-  auto problem = PROBLEM;
-  std::shared_ptr<MethodALE> method(
-      std::make_shared<MethodALE>(problem, 100, 100, 0.0, 0.0, 0.1, 1));
-  std::shared_ptr<Simulation> sim(
-      std::make_shared<Simulation>(method, problem));
-  sim->run();
+  MPI_Init(&argc, &argv);
 
+  int worldSize;
+  MPI_Comm_size(MPI_COMM_WORLD, &worldSize);
+  int worldRank;
+  MPI_Comm_rank(MPI_COMM_WORLD, &worldRank);
+  char processorName[MPI_MAX_PROCESSOR_NAME];
+  int processorNameLen;
+  MPI_Get_processor_name(processorName, &processorNameLen);
+
+  Logger mainLogger;
+  std::string initMessage =
+      std::format("NODE: {}, PROCESS: {}, WORLD_SIZE: {}, OPENMP THREADS: {}",
+                  processorName, worldRank, worldSize, Eigen::nbThreads());
+  mainLogger.log(initMessage, LogLevel::eGeneral);
+
+  MPI_Finalize();
   return 0;
 }
