@@ -15,6 +15,7 @@ set(SOURCE_FILES src/main.cpp
     src/output_mgr.hpp src/output_mgr.cpp
     src/eos.hpp src/eos.cpp
     src/logger.hpp src/logger.cpp
+    src/gauss.hpp
 )
 
 add_executable(ale ${SOURCE_FILES})
@@ -24,9 +25,9 @@ set_target_properties(ale PROPERTIES
     CXX_STANDARD_REQIRED YES
     CXX_EXTENSIONS NO)
 
-find_package(MPI REQUIRED)
-message(STATUS "Run: ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MPIEXEC_MAX_NUMPROCS} ${MPIEXEC_PREFLAGS} EXECUTABLE ${MPIEXEC_POSTFLAGS} ARGS")
-target_link_libraries(ale PUBLIC MPI::MPI_CXX)
+# find_package(MPI REQUIRED)
+# message(STATUS "Run: ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MPIEXEC_MAX_NUMPROCS} ${MPIEXEC_PREFLAGS} EXECUTABLE ${MPIEXEC_POSTFLAGS} ARGS")
+# target_link_libraries(ale PUBLIC MPI::MPI_CXX)
 
 find_package(Eigen3 3.4 REQUIRED NO_MODULE)
 target_link_libraries(ale PUBLIC Eigen3::Eigen)
