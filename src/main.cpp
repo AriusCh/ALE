@@ -1,20 +1,22 @@
+#include <Eigen/Core>
+#include <format>
 #include <iostream>
 #include <memory>
+#include <string>
 
+#include "logger.hpp"
 #include "method.hpp"
 #include "problem.hpp"
 #include "simulation.hpp"
 
-#define PROBLEM toro3x;
+#define PROBLEM sodTest
 
 int main([[maybe_unused]] int argc, [[maybe_unused]] char *argv[]) {
   extern std::shared_ptr<Problem> PROBLEM;
-  auto problem = PROBLEM;
-  std::shared_ptr<MethodALE> method(
-      std::make_shared<MethodALE>(problem, 100, 100, 0.0, 0.0, 0.1, 1));
-  std::shared_ptr<Simulation> sim(
-      std::make_shared<Simulation>(method, problem));
-  sim->run();
+  std::shared_ptr<FEMALEMethod> mtd =
+      std::make_shared<FEMALEMethod>("sod-test", PROBLEM, 50, 1, 1);
+  Simulation sim(mtd);
+  sim.run();
 
   return 0;
 }

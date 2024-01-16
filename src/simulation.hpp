@@ -8,7 +8,7 @@
 
 class Simulation {
  public:
-  Simulation(std::shared_ptr<Method> method, std::shared_ptr<Problem> problem);
+  Simulation(std::shared_ptr<Method> method);
   Simulation(Simulation const &rhs) = default;
   Simulation(Simulation &&rhs) = default;
 
@@ -28,9 +28,6 @@ class Simulation {
 
  private:
   std::shared_ptr<Method> method;
-  std::shared_ptr<Problem> problem;
-
-  double t;
 
   Logger logger;
 };

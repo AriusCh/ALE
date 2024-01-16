@@ -4,7 +4,7 @@
 #include <filesystem>
 #include <fstream>
 #include <functional>
-#include <future>
+// #include <future>
 #include <string>
 
 #include "grid.hpp"
@@ -12,7 +12,7 @@
 
 class Writer {
  public:
-  Writer(std::string problemName);
+  Writer(const std::string &problemName);
   ~Writer();
 
   void dumpData(std::function<void(std::ofstream ofs)>,
@@ -20,8 +20,6 @@ class Writer {
 
  private:
   std::filesystem::path outputDirPath;
-
-  mutable std::vector<std::future<void>> futures;
 
   Logger logger;
 };

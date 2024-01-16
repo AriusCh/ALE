@@ -1,6 +1,7 @@
 #ifndef ALE_SOLVER_SRC_EOS_HPP_
 #define ALE_SOLVER_SRC_EOS_HPP_
 
+#include <cmath>
 class EOS {
  public:
   virtual ~EOS() = 0;
@@ -14,7 +15,7 @@ class EOS {
 
 class EOSIdeal : public EOS {
  public:
-  EOSIdeal(double gamma_);
+  EOSIdeal(double gamma_) : gamma(gamma_) {}
   EOSIdeal(EOSIdeal const &rhs) = default;
   EOSIdeal(EOSIdeal &&rhs) = default;
 
@@ -23,12 +24,20 @@ class EOSIdeal : public EOS {
   virtual ~EOSIdeal() = default;
 
  public:
-  virtual double getp(double rho, double e) const override;
-  virtual double gete(double rho, double p) const override;
-  virtual double getc(double rho, double p) const override;
-  virtual double gets(double rho, double p) const override;
+  inline virtual double getp(double rho, double e) const override {
+    return (gamma - 1.) * rho * e;
+  }
+  inline virtual double gete(double rho, double p) const override {
+    return p / (gamma - 1.) / rho;
+  }
+  inline virtual double getc(double rho, double p) const override {
+    return std::sqrt(gamma * p / rho);
+  }
+  inline virtual double gets(double rho, double p) const override {
+    return p / std::pow(rho, gamma);
+  }
 
-  double getGamma() const;
+  inline double getGamma() const { return gamma; };
 
  private:
   double gamma;

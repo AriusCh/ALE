@@ -17,7 +17,7 @@ class Logger {
 
   ~Logger() = default;
 
-  void Log(std::string message, LogLevel logLevel = LogLevel::eInfo) const;
+  void log(std::string message, LogLevel logLevel = LogLevel::eInfo) const;
 
   LogLevel getMinLogLevel() const;
   void setMinLogLevel(LogLevel minLogLevel_);
