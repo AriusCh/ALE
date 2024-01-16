@@ -9,6 +9,14 @@
 #include "problem.hpp"
 #include "simulation.hpp"
 
+#define PROBLEM sodTest
+
 int main([[maybe_unused]] int argc, [[maybe_unused]] char *argv[]) {
+  extern std::shared_ptr<Problem> PROBLEM;
+  std::shared_ptr<FEMALEMethod> mtd =
+      std::make_shared<FEMALEMethod>("sod-test", PROBLEM, 50, 1, 1);
+  Simulation sim(mtd);
+  sim.run();
+
   return 0;
 }

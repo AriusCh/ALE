@@ -3,34 +3,31 @@
 #include <cmath>
 #include <format>
 
-Simulation::Simulation(std::shared_ptr<Method> method,
-                       std::shared_ptr<Problem> problem)
-    : method(std::move(method)), problem(std::move(problem)) {}
+Simulation::Simulation(std::shared_ptr<Method> method)
+    : method(std::move(method)) {}
 void Simulation::run() {
-  t = method->tmin;
+  method->t = method->tmin;
 
   int iterationNum = 0;
   logSimulationStart();
-  // method->dumpGrid(problem);
-  double dt = method->calcdt();
+  method->dumpGrid();
   auto simStart = std::chrono::high_resolution_clock::now();
-  while (t < method->tmax) {
-    if (t + dt > method->tmax) {
-      dt = method->tmax - t;
+  while (method->t < method->tmax) {
+    method->calcdt();
+    if (method->t + method->dt > method->tmax) {
+      method->dt = method->tmax - method->t;
     }
 
     auto start = std::chrono::high_resolution_clock::now();
 
-    method->calc(dt);
+    method->calc();
 
     double calcTime = std::chrono::duration<double>(
                           std::chrono::high_resolution_clock::now() - start)
                           .count();
 
-    logSuccessfulIteration(iterationNum, t, dt, calcTime);
+    logSuccessfulIteration(iterationNum, method->t, method->dt, calcTime);
 
-    t += dt;
-    method->t += dt;
     iterationNum++;
   }
   double simulationTime =
@@ -38,26 +35,27 @@ void Simulation::run() {
                                     simStart)
           .count();
   logSimulationEnd(simulationTime);
-  // method->dumpGrid(problem);
+  method->dumpGrid();
 }
 
 void Simulation::logSuccessfulIteration(int iterationNumber, double t,
                                         double dt, double calcTime) const {
   std::string message = std::format(
       "PROBLEM: {} ITERATION: {:6} t: {:6.6e} dt: {:6.6e} STEP TIME: {:.6f}",
-      problem->name, iterationNumber, t, dt, calcTime);
+      method->problemName, iterationNumber, t, dt, calcTime);
 
   logger.log(message, LogLevel::eGeneral);
 }
 void Simulation::logSimulationStart() const {
   std::string message =
-      std::format("PROBLEM: {} STARTING SIMULATION", problem->name);
+      std::format("PROBLEM: {} STARTING SIMULATION", method->problemName);
 
   logger.log(message, LogLevel::eGeneral);
 }
 void Simulation::logSimulationEnd(double simTime) const {
-  std::string message = std::format(
-      "PROBLEM: {} SIMULATION COMPLETE. TIME: {:.6f}", problem->name, simTime);
+  std::string message =
+      std::format("PROBLEM: {} SIMULATION COMPLETE. TIME: {:.6f}",
+                  method->problemName, simTime);
 
   logger.log(message, LogLevel::eGeneral);
 }

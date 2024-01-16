@@ -8,9 +8,10 @@
 
 #include "boundary.hpp"
 #include "eos.hpp"
-#include "grid.hpp"
 #include "logger.hpp"
 #include "output_mgr.hpp"
+
+enum class ProblemDimension { e1D, e2D };
 
 class Problem {
  public:
@@ -23,7 +24,8 @@ class Problem {
       std::function<double(double x, double y)> vInitializer_,
       std::function<double(double x, double y)> rhoInitializer_,
       std::function<double(double x, double y)> pInitializer_,
-      std::function<std::shared_ptr<EOS>(double x, double y)> eosInitializer_);
+      std::function<std::shared_ptr<EOS>(double x, double y)> eosInitializer_,
+      ProblemDimension dimension_);
   Problem(Problem const &rhs) = default;
   Problem(Problem &&rhs) = default;
 
@@ -53,11 +55,13 @@ class Problem {
       vInitializer;  // Function that returns v initial value depending on the
                      // coords
   const std::function<double(double x, double y)>
-      rhoInitializer;  // Function that returns rho initial value
+      rhoInitializer;  // Function that returns rho initial values
   const std::function<double(double x, double y)>
-      pInitializer;  // Function that returns p initial value
+      pInitializer;  // Function that returns p initial values
   const std::function<std::shared_ptr<EOS>(double x, double y)>
       eosInitializer;  // Function that returns EOSes to use in the grid
+
+  const ProblemDimension dimension;
 
  protected:
   Logger logger;

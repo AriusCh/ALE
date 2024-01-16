@@ -9,13 +9,12 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
 set(SOURCE_FILES src/main.cpp
     src/simulation.hpp src/simulation.cpp
     src/method.hpp src/method.cpp
-    src/grid.hpp src/grid.cpp
     src/boundary.hpp src/boundary.cpp
     src/problem.hpp src/problem.cpp
     src/output_mgr.hpp src/output_mgr.cpp
     src/eos.hpp src/eos.cpp
     src/logger.hpp src/logger.cpp
-    src/gauss.hpp
+    src/nodes.hpp src/nodes.cpp
 )
 
 add_executable(ale ${SOURCE_FILES})
@@ -40,6 +39,6 @@ endif()
 # if (MSVC) 
 #     target_compile_options(ale PRIVATE /W4 /WX)
 # else()
-target_compile_options(ale PRIVATE -Wall -Wextra -Wpedantic -Werror)
+target_compile_options(ale PRIVATE -Wall -Wextra -Wpedantic)
 # endif()
 

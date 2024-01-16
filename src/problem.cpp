@@ -13,7 +13,8 @@ Problem::Problem(
     std::function<double(double x, double y)> vInitializer_,
     std::function<double(double x, double y)> rhoInitializer_,
     std::function<double(double x, double y)> pInitializer_,
-    std::function<std::shared_ptr<EOS>(double x, double y)> eosInitializer_)
+    std::function<std::shared_ptr<EOS>(double x, double y)> eosInitializer_,
+    ProblemDimension dimension_)
     : name(name_),
       xmin(xmin_),
       xmax(xmax_),
@@ -29,7 +30,8 @@ Problem::Problem(
       vInitializer(vInitializer_),
       rhoInitializer(rhoInitializer_),
       pInitializer(pInitializer_),
-      eosInitializer(eosInitializer_) {}
+      eosInitializer(eosInitializer_),
+      dimension(dimension_) {}
 
 RiemannProblem1Dx::RiemannProblem1Dx(const std::string &name, double xmin,
                                      double xmax, double tmax, double rhoL,
@@ -37,11 +39,8 @@ RiemannProblem1Dx::RiemannProblem1Dx(const std::string &name, double xmin,
                                      double uR, double pR, double spl,
                                      double gamma)
     : Problem(
-          name, xmin, xmax, 0.0, 1.0, 0.0, tmax,
-          BoundaryType::eExternalTransparent,
-          BoundaryType::eExternalTransparent,
-          BoundaryType::eExternalTransparent,
-          BoundaryType::eExternalTransparent,
+          name, xmin, xmax, 0.0, 1.0, 0.0, tmax, BoundaryType::eWall,
+          BoundaryType::eWall, BoundaryType::eWall, BoundaryType::eWall,
           [uL, uR, spl](double x, [[maybe_unused]] double y) {
             if (x <= spl) {
               return uL;
@@ -71,7 +70,8 @@ RiemannProblem1Dx::RiemannProblem1Dx(const std::string &name, double xmin,
             static std::shared_ptr<EOSIdeal> eos =
                 std::make_shared<EOSIdeal>(gamma);
             return eos;
-          }) {
+          },
+          ProblemDimension::e1D) {
   assert(spl >= xmin && spl <= xmax);
 }
 // void RiemannProblem1Dx::dumpGrid(std::shared_ptr<GridALE> grid,
