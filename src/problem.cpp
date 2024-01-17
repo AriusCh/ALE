@@ -42,7 +42,7 @@ RiemannProblem1Dx::RiemannProblem1Dx(const std::string &name, double xmin,
           name, xmin, xmax, 0.0, 1.0, 0.0, tmax, BoundaryType::eWall,
           BoundaryType::eWall, BoundaryType::eWall, BoundaryType::eWall,
           [uL, uR, spl](double x, [[maybe_unused]] double y) {
-            if (x <= spl) {
+            if (x < spl) {
               return uL;
             } else {
               return uR;
@@ -52,7 +52,7 @@ RiemannProblem1Dx::RiemannProblem1Dx(const std::string &name, double xmin,
             return 0.0;
           },
           [rhoL, rhoR, spl](double x, [[maybe_unused]] double y) {
-            if (x <= spl) {
+            if (x < spl) {
               return rhoL;
 
             } else {
@@ -60,7 +60,7 @@ RiemannProblem1Dx::RiemannProblem1Dx(const std::string &name, double xmin,
             }
           },
           [pL, pR, spl](double x, [[maybe_unused]] double y) {
-            if (x <= spl) {
+            if (x < spl) {
               return pL;
             } else {
               return pR;
@@ -148,7 +148,7 @@ CircularRiemannProblem::CircularRiemannProblem(
 
 // Riemann test problems
 std::shared_ptr<Problem> sodTest = std::make_shared<RiemannProblem1Dx>(
-    "sod-test", 0.0, 1.0, 0.2, 1.0, 0.0, 1.0, 0.125, 0.0, 0.1, 0.5, 1.4);
+    "sod-test", 0.0, 1.0, 0.2, 1.0, 0.0, 1.0, 0.125, 0.0, 0.1, 0.5, 5.0/3.0);
 std::shared_ptr<Problem> blastWave2D = std::make_shared<CircularRiemannProblem>(
     "blastWave", -1.0, 1.0, -1.0, 1.0, 0.25, 1.0, 0.0, 0.0, 1.0, 0.125, 0.0,
     0.0, 0.1, 0.4, 1.4);

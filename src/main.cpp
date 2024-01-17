@@ -9,12 +9,12 @@
 #include "problem.hpp"
 #include "simulation.hpp"
 
-#define PROBLEM blastWave2D
+#define PROBLEM sodTest
 
 int main([[maybe_unused]] int argc, [[maybe_unused]] char *argv[]) {
   extern std::shared_ptr<Problem> PROBLEM;
   std::shared_ptr<FEMALEMethod> mtd =
-      std::make_shared<FEMALEMethod>(PROBLEM->name, PROBLEM, 50, 50, 1);
+      std::make_shared<FEMALEMethod>(PROBLEM->name, PROBLEM, 34, 1, 2);
   Simulation sim(mtd);
   sim.run();
 

@@ -69,3 +69,25 @@ double lobattoBasis1Ddx(double x, size_t order, size_t k) {
   }
   return output;
 }
+double legendreBasis1D(double x, size_t order, size_t k) {
+  assert(order + 1 <= legendreOrderMax);
+  assert(x >= 0.0 && x <= 1.0);
+  assert(k < order + 1);
+
+  double numerator = 1.0;
+  double denominator = 1.0;
+  const size_t indMin = getLegendreStartIndex(order + 1);
+  const size_t indJ = indMin + k;
+  const size_t indMax = indMin + order + 1;
+
+  for (size_t i = indMin; i < indJ; i++) {
+    numerator *= x - legendreAbscissas[i];
+    denominator *= legendreAbscissas[indJ] - legendreAbscissas[i];
+  }
+  for (size_t i = indJ + 1; i < indMax; i++) {
+    numerator *= x - legendreAbscissas[i];
+    denominator *= legendreAbscissas[indJ] - legendreAbscissas[i];
+  }
+
+  return numerator / denominator;
+}

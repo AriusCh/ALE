@@ -94,5 +94,6 @@ inline size_t getLobattoStartIndex(size_t order) {
 
 double lobattoBasis1D(double x, size_t order, size_t k);
 double lobattoBasis1Ddx(double x, size_t order, size_t k);
+double legendreBasis1D(double x, size_t order, size_t k);
 
 #endif

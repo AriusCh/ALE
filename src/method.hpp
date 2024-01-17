@@ -116,9 +116,7 @@ class FEMALEMethod : public Method {
       const Eigen::Matrix<double, 2, 2> &jacobianInitial, const size_t celli,
       const size_t cellj, const size_t i, const size_t j, double rhoLocal,
       double pLocal);
-  double calcViscosityCoeff(const Eigen::Matrix<double, Eigen::Dynamic, 1> &u,
-                            const Eigen::Matrix<double, Eigen::Dynamic, 1> &v,
-                            const Eigen::Matrix<double, 2, 2> &jacobian,
+  double calcViscosityCoeff(const Eigen::Matrix<double, 2, 2> &jacobian,
                             const Eigen::Matrix<double, 2, 2> &jacobianInitial,
                             const Eigen::Matrix<double, 2, 2> &velocityGrad,
                             double eigenvalue,

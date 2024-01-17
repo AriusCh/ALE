@@ -678,6 +678,7 @@ Eigen::Matrix<double, 2, 2> FEMALEMethod::calcArtificialViscosity(
     velocityGrad(1, 0) += vk * basis2Ddx;
     velocityGrad(1, 1) += vk * basis2Ddy;
   }
+  velocityGrad = jacobian.inverse() * velocityGrad;
   Eigen::Matrix<double, 2, 2> symVelocityGrad =
       0.5 * (velocityGrad + velocityGrad.transpose());
 
@@ -689,11 +690,11 @@ Eigen::Matrix<double, 2, 2> FEMALEMethod::calcArtificialViscosity(
   Eigen::Matrix<double, 2, 1> v1 = eigensolver.eigenvectors().col(0);
   Eigen::Matrix<double, 2, 1> v2 = eigensolver.eigenvectors().col(1);
   double viscosityCoeff1 =
-      calcViscosityCoeff(u, v, jacobian, jacobianInitial, velocityGrad, e1, v1,
-                         celli, cellj, i, j, rhoLocal, pLocal);
+      calcViscosityCoeff(jacobian, jacobianInitial, velocityGrad, e1, v1, celli,
+                         cellj, i, j, rhoLocal, pLocal);
   double viscosityCoeff2 =
-      calcViscosityCoeff(u, v, jacobian, jacobianInitial, velocityGrad, e2, v2,
-                         celli, cellj, i, j, rhoLocal, pLocal);
+      calcViscosityCoeff(jacobian, jacobianInitial, velocityGrad, e2, v2, celli,
+                         cellj, i, j, rhoLocal, pLocal);
 
   Eigen::Matrix<double, 2, 2> v1Tensor{{v1(0) * v1(0), v1(0) * v1(1)},
                                        {v1(0) * v1(1), v1(1) * v1(1)}};
@@ -708,8 +709,6 @@ Eigen::Matrix<double, 2, 2> FEMALEMethod::calcArtificialViscosity(
 }
 
 double FEMALEMethod::calcViscosityCoeff(
-    const Eigen::Matrix<double, Eigen::Dynamic, 1> &u,
-    const Eigen::Matrix<double, Eigen::Dynamic, 1> &v,
     const Eigen::Matrix<double, 2, 2> &jacobian,
     const Eigen::Matrix<double, 2, 2> &jacobianInitial,
     const Eigen::Matrix<double, 2, 2> &velocityGrad, double eigenvalue,
@@ -727,20 +726,7 @@ double FEMALEMethod::calcViscosityCoeff(
   double psi0 = 0.0;
   double velgradNorm = velocityGrad.norm();
   if (velgradNorm != 0.0) {
-    double velocityScalarGrad = 0.0;
-    for (size_t k = 0; k < (order + 1) * (order + 1); k++) {
-      size_t indK = getKinematicIndexFromCell(celli, cellj, k);
-      double uk = u[indK];
-      double vk = v[indK];
-      double basis2Ddx =
-          force1DdxKinematicValues[(k % (order + 1)) * forceQuadOrder + i] *
-          force1DKinematicValues[(k / (order + 1)) * forceQuadOrder + j];
-      double basis2Ddy =
-          force1DKinematicValues[(k % (order + 1)) * forceQuadOrder + i] *
-          force1DdxKinematicValues[(k / (order + 1)) * forceQuadOrder + j];
-      velocityScalarGrad += uk * basis2Ddx;
-      velocityScalarGrad += vk * basis2Ddy;
-    }
+    double velocityScalarGrad = velocityGrad(0, 0) + velocityGrad(1, 1);
     velocityScalarGrad = std::abs(velocityScalarGrad);
 
     psi0 = velocityScalarGrad / velgradNorm;
