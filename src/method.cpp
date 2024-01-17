@@ -15,7 +15,7 @@ FEMALEMethod::FEMALEMethod(const std::string &name,
       order(order_),
       kinematicMassQuadOrder(order * 2),
       thermoMassQuadOrder(order * 2 - 1),
-      forceQuadOrder(order * 5 / 2),
+      forceQuadOrder(order),
       Nk((order * xSize + 1) * (order * ySize + 1)),
       Nt((order * xSize) * (order * ySize)),
       xmin(pr_->xmin),
@@ -38,7 +38,7 @@ FEMALEMethod::FEMALEMethod(const std::string &name,
       y05(Nk),
       u05(Nk),
       v05(Nk),
-      e05(Nk),
+      e05(Nt),
       Fu(Nk),
       Fv(Nk),
       Mkx(Nk, Nk),
@@ -316,7 +316,7 @@ std::array<double, 2> FEMALEMethod::quadForceCell(
       Eigen::Matrix<double, 2, 2> rhsy = rhsx;
       rhsx = rhsx * gradBasisx;
       rhsx *= thermobasis * jacDet;
-      rhsy = rhsx * gradBasisy;
+      rhsy = rhsy * gradBasisy;
       rhsy *= thermobasis * jacDet;
 
       output[0] +=
@@ -575,13 +575,14 @@ void FEMALEMethod::calcForceMatrices(
     const Eigen::Matrix<double, Eigen::Dynamic, 1> &e) {
   for (size_t celli = 0; celli < xSize; celli++) {
     for (size_t cellj = 0; cellj < ySize; cellj++) {
-      for (size_t i = 0; i < (order + 1) * (order + 1); i++) {
-        for (size_t j = 0; j < order * order; j++) {
+      for (size_t kinematikk = 0; kinematikk < (order + 1) * (order + 1);
+           kinematikk++) {
+        for (size_t thermok = 0; thermok < order * order; thermok++) {
           std::array<double, 2> quadResult =
-              quadForceCell(celli, cellj, i, j, x, y, u, v, e);
+              quadForceCell(celli, cellj, kinematikk, thermok, x, y, u, v, e);
 
-          size_t indI = getKinematicIndexFromCell(celli, cellj, i);
-          size_t indJ = getThermodynamicIndexFromCell(celli, cellj, j);
+          size_t indI = getKinematicIndexFromCell(celli, cellj, kinematikk);
+          size_t indJ = getThermodynamicIndexFromCell(celli, cellj, thermok);
 
           Fx.coeffRef(indI, indJ) = quadResult[0];
           Fy.coeffRef(indI, indJ) = quadResult[1];
@@ -683,21 +684,23 @@ Eigen::Matrix<double, 2, 2> FEMALEMethod::calcArtificialViscosity(
   Eigen::SelfAdjointEigenSolver<decltype(symVelocityGrad)> eigensolver(
       symVelocityGrad);
 
-  const Eigen::Matrix<double, 2, 1> &v1 = eigensolver.eigenvectors().col(0);
-  const Eigen::Matrix<double, 2, 1> &v2 = eigensolver.eigenvectors().col(1);
-  double viscosityCoeff1 = calcViscosityCoeff(
-      u, v, jacobian, jacobianInitial, velocityGrad,
-      eigensolver.eigenvalues()(0), v1, celli, cellj, i, j, rhoLocal, pLocal);
-  double viscosityCoeff2 = calcViscosityCoeff(
-      u, v, jacobian, jacobianInitial, velocityGrad,
-      eigensolver.eigenvalues()(1), v2, celli, cellj, i, j, rhoLocal, pLocal);
+  double e1 = eigensolver.eigenvalues()(0);
+  double e2 = eigensolver.eigenvalues()(1);
+  Eigen::Matrix<double, 2, 1> v1 = eigensolver.eigenvectors().col(0);
+  Eigen::Matrix<double, 2, 1> v2 = eigensolver.eigenvectors().col(1);
+  double viscosityCoeff1 =
+      calcViscosityCoeff(u, v, jacobian, jacobianInitial, velocityGrad, e1, v1,
+                         celli, cellj, i, j, rhoLocal, pLocal);
+  double viscosityCoeff2 =
+      calcViscosityCoeff(u, v, jacobian, jacobianInitial, velocityGrad, e2, v2,
+                         celli, cellj, i, j, rhoLocal, pLocal);
 
   Eigen::Matrix<double, 2, 2> v1Tensor{{v1(0) * v1(0), v1(0) * v1(1)},
                                        {v1(0) * v1(1), v1(1) * v1(1)}};
   Eigen::Matrix<double, 2, 2> v2Tensor{{v2(0) * v2(0), v2(0) * v2(1)},
                                        {v2(0) * v2(1), v2(1) * v2(1)}};
-  output += viscosityCoeff1 * eigensolver.eigenvalues()(0) * v1Tensor;
-  output += viscosityCoeff2 * eigensolver.eigenvalues()(1) * v2Tensor;
+  output += viscosityCoeff1 * e1 * v1Tensor;
+  output += viscosityCoeff2 * e2 * v2Tensor;
 
   maxViscosityCoeff = std::max(viscosityCoeff1, viscosityCoeff2);
 
@@ -1034,100 +1037,6 @@ void FEMALEMethod::resolveBottomBoundaryForce() {
   }
 }
 
-// void FEMALEMethod::resolveBoundaryConditions(
-//     Eigen::Matrix<double, Eigen::Dynamic, 1> &du,
-//     Eigen::Matrix<double, Eigen::Dynamic, 1> &dv) {
-//   resolveLeftBoundaries(du, dv);
-//   resolveRightBoundaries(du, dv);
-//   resolveTopBoundaries(du, dv);
-//   resolveBottomBoundaries(du, dv);
-// }
-//
-// void FEMALEMethod::resolveLeftBoundaries(
-//     Eigen::Matrix<double, Eigen::Dynamic, 1> &du,
-//     Eigen::Matrix<double, Eigen::Dynamic, 1> &dv) {
-//   const size_t jmax = order * ySize + 1;
-//   switch (leftBoundaryType) {
-//     case BoundaryType::eExternalFree:
-//       break;
-//     case BoundaryType::eExternalWall:
-//       for (size_t j = 0; j < jmax; j++) {
-//         du(j) = 0.0;
-//       }
-//       break;
-//     case BoundaryType::eExternalNoSlipWall:
-//       for (size_t j = 0; j < jmax; j++) {
-//         du(j) = 0.0;
-//         dv(j) = 0.0;
-//       }
-//       break;
-//   }
-// }
-// void FEMALEMethod::resolveTopBoundaries(
-//     Eigen::Matrix<double, Eigen::Dynamic, 1> &du,
-//     Eigen::Matrix<double, Eigen::Dynamic, 1> &dv) {
-//   const size_t imax = order * xSize + 1;
-//   const size_t jmax = order * ySize + 1;
-//   const size_t j = jmax - 1;
-//   switch (topBoundaryType) {
-//     case BoundaryType::eExternalFree:
-//       break;
-//     case BoundaryType::eExternalWall:
-//       for (size_t i = 0; i < imax; i++) {
-//         dv(i * jmax + j) = 0.0;
-//       }
-//       break;
-//     case BoundaryType::eExternalNoSlipWall:
-//       for (size_t i = 0; i < imax; i++) {
-//         du(i * jmax + j) = 0.0;
-//         dv(i * jmax + j) = 0.0;
-//       }
-//       break;
-//   }
-// }
-// void FEMALEMethod::resolveRightBoundaries(
-//     Eigen::Matrix<double, Eigen::Dynamic, 1> &du,
-//     Eigen::Matrix<double, Eigen::Dynamic, 1> &dv) {
-//   const size_t imax = order * xSize + 1;
-//   const size_t jmax = order * ySize + 1;
-//   const size_t i = imax - 1;
-//   switch (rightBoundaryType) {
-//     case BoundaryType::eExternalFree:
-//       break;
-//     case BoundaryType::eExternalWall:
-//       for (size_t j = 0; j < jmax; j++) {
-//         du(i * jmax + j) = 0.0;
-//       }
-//       break;
-//     case BoundaryType::eExternalNoSlipWall:
-//       for (size_t j = 0; j < jmax; j++) {
-//         du(i * jmax + j) = 0.0;
-//         dv(i * jmax + j) = 0.0;
-//       }
-//   }
-// }
-// void FEMALEMethod::resolveBottomBoundaries(
-//     Eigen::Matrix<double, Eigen::Dynamic, 1> &du,
-//     Eigen::Matrix<double, Eigen::Dynamic, 1> &dv) {
-//   const size_t imax = order * xSize + 1;
-//   const size_t jmax = order * ySize + 1;
-//   switch (bottomBoundaryType) {
-//     case BoundaryType::eExternalFree:
-//       break;
-//     case BoundaryType::eExternalWall:
-//       for (size_t i = 0; i < imax; i++) {
-//         dv(i * jmax) = 0.0;
-//       }
-//       break;
-//     case BoundaryType::eExternalNoSlipWall:
-//       for (size_t i = 0; i < imax; i++) {
-//         du(i * jmax) = 0.0;
-//         dv(i * jmax) = 0.0;
-//       }
-//       break;
-//   }
-// }
-
 void FEMALEMethod::RK2step() {
   // dt / 2
   while (true) {
@@ -1174,10 +1083,15 @@ void FEMALEMethod::RK2step() {
   v05 = kinematicSolvery.solve(Fv);
   assert(kinematicSolvery.info() == Eigen::Success);
   u05 *= -dt;
-  u05 += 2.0 * u;
+  u05 += u;
+  u.swap(u05);
+  u05 += u;
   u05 *= 0.5;
+
   v05 *= -dt;
-  v05 += 2.0 * v;
+  v05 += v;
+  v.swap(v05);
+  v05 += v;
   v05 *= 0.5;
 
   e05 = Mt_inv * (Fx.transpose() * u05 + Fy.transpose() * v05);
@@ -1193,7 +1107,5 @@ void FEMALEMethod::RK2step() {
 
   x = x05;
   y = y05;
-  u = u05;
-  v = v05;
   e = e05;
 }

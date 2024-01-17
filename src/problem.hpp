@@ -79,17 +79,16 @@ class RiemannProblem1Dx : public Problem {
  private:
 };
 
-// class CircularRiemannProblem : public Problem {
-//  public:
-//   CircularRiemannProblem(const std::string &name, double xmin, double xmax,
-//                          double ymin, double ymax, double tmax, double rhoL,
-//                          double uL, double vL, double pL, double rhoR,
-//                          double uR, double vR, double pR, double spl,
-//                          double gamma);
-//
-//  public:
-//
-//  private:
-// };
+class CircularRiemannProblem : public Problem {
+ public:
+  CircularRiemannProblem(const std::string &name, double xmin, double xmax,
+                         double ymin, double ymax, double tmax, double rhoL,
+                         double uL, double vL, double pL, double rhoR,
+                         double uR, double vR, double pR, double spl,
+                         double gamma);
+
+ public:
+ private:
+};
 
 #endif

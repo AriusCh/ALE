@@ -102,101 +102,56 @@ RiemannProblem1Dx::RiemannProblem1Dx(const std::string &name, double xmin,
 //   writer.dumpData(std::move(outputF), filename);
 // }
 
-// CircularRiemannProblem::CircularRiemannProblem(
-//     const std::string &name, double xmin, double xmax, double ymin, double
-//     ymax, double tmax, double rhoL, double uL, double vL, double pL, double
-//     rhoR, double uR, double vR, double pR, double spl, double gamma) :
-//     Problem(name, ProblemType::eCircularRiemannProblem,
-//               AxisymmetryType::eNone, xmin, xmax, ymin, ymax, 0.0, tmax,
-//               BoundaryType::eExternalTransparent,
-//               BoundaryType::eExternalTransparent,
-//               BoundaryType::eExternalTransparent,
-//               BoundaryType::eExternalTransparent),
-//       uL(uL),
-//       vL(vL),
-//       rhoL(rhoL),
-//       pL(pL),
-//       uR(uR),
-//       vR(vR),
-//       rhoR(rhoR),
-//       pR(pR),
-//       spl(spl),
-//       gamma(gamma) {
-//   createProblem();
-// }
-// void CircularRiemannProblem::dumpGrid(std::shared_ptr<GridALE> grid,
-//                                       double t) const {
-//   std::string filename = std::format("{}_{:.3f}.txt", name, t);
-//   std::function<void(std::ofstream ofs)> outputF =
-//       [x = grid->x, y = grid->y, u = grid->u, v = grid->v, rho = grid->rho,
-//        p = grid->p, sizeX = grid->sizeX, sizeY = grid->sizeY,
-//        eos = grid->eos](std::ofstream ofs) {
-//         ofs << sizeX - sizeX / 2 << std::endl;
-//         for (int i = sizeX / 2; i < sizeX; i++) {
-//           int j = sizeY / 2;
-//           double xij =
-//               0.25 * (x[i][j] + x[i + 1][j] + x[i][j + 1] + x[i + 1][j + 1]);
-//           double uij =
-//               0.25 * (u[i][j] + u[i + 1][j] + u[i][j + 1] + u[i + 1][j + 1]);
-//           double vij =
-//               0.25 * (v[i][j] + v[i + 1][j] + v[i][j + 1] + v[i + 1][j + 1]);
-//           double rhoij = rho[i][j];
-//           double pij = p[i][j];
-//           double eij = eos->gete(rhoij, pij);
-//           auto output =
-//               std::format("{} {} {} {} {} {}", xij, uij, vij, rhoij, pij,
-//               eij);
-//           ofs << output << std::endl;
-//         }
-//       };
-//   writer.dumpData(std::move(outputF), filename);
-// }
-//
-// void CircularRiemannProblem::createInitializers() {
-//   uInitializer = [uL = this->uL, uR = this->uR, spl = this->spl](double x,
-//                                                                  double y) {
-//     if (x * x + y * y <= spl * spl) {
-//       return uL;
-//     } else {
-//       return uR;
-//     }
-//   };
-//   vInitializer = [vL = this->vL, vR = this->vR, spl = this->spl](double x,
-//                                                                  double y) {
-//     if (x * x + y * y <= spl * spl) {
-//       return vL;
-//     } else {
-//       return vR;
-//     }
-//   };
-//   rhoInitializer = [rhoL = this->rhoL, rhoR = this->rhoR, spl = this->spl](
-//                        double x, [[maybe_unused]] double y) {
-//     if (x * x + y * y <= spl * spl) {
-//       return rhoL;
-//     } else {
-//       return rhoR;
-//     }
-//   };
-//   pInitializer = [pL = this->pL, pR = this->pR, spl = this->spl](
-//                      double x, [[maybe_unused]] double y) {
-//     if (x * x + y * y <= spl * spl) {
-//       return pL;
-//     } else {
-//       return pR;
-//     }
-//   };
-// }
-// void CircularRiemannProblem::createEOS() {
-//   eos = std::make_shared<EOSIdeal>(gamma);
-// }
+CircularRiemannProblem::CircularRiemannProblem(
+    const std::string &name, double xmin, double xmax, double ymin, double ymax,
+    double tmax, double rhoL, double uL, double vL, double pL, double rhoR,
+    double uR, double vR, double pR, double spl, double gamma)
+    : Problem(
+          name, xmin, xmax, ymin, ymax, 0.0, tmax, BoundaryType::eWall,
+          BoundaryType::eWall, BoundaryType::eWall, BoundaryType::eWall,
+          [uL, uR, spl](double x, double y) {
+            if (x * x + y * y <= spl * spl) {
+              return uL;
+            } else {
+              return uR;
+            }
+          },
+          [vL, vR, spl](double x, double y) {
+            if (x * x + y * y <= spl * spl) {
+              return vL;
+            } else {
+              return vR;
+            }
+          },
+          [rhoL, rhoR, spl](double x, double y) {
+            if (x * x + y * y <= spl * spl) {
+              return rhoL;
+            } else {
+              return rhoR;
+            }
+          },
+          [pL, pR, spl](double x, double y) {
+            if (x * x + y * y <= spl * spl) {
+              return pL;
+            } else {
+              return pR;
+            }
+          },
+          [gamma]([[maybe_unused]] double x, [[maybe_unused]] double y) {
+            static std::shared_ptr<EOSIdeal> eos =
+                std::make_shared<EOSIdeal>(gamma);
+            return eos;
+          },
+          ProblemDimension::e1D) {
+  assert(spl >= xmin && spl <= xmax);
+}
 
 // Riemann test problems
 std::shared_ptr<Problem> sodTest = std::make_shared<RiemannProblem1Dx>(
     "sod-test", 0.0, 1.0, 0.2, 1.0, 0.0, 1.0, 0.125, 0.0, 0.1, 0.5, 1.4);
-// std::shared_ptr<Problem> blastWave =
-// std::make_shared<CircularRiemannProblem>(
-//     "blastWave", -1.0, 1.0, -1.0, 1.0, 0.25, 1.0, 0.0, 0.0, 1.0, 0.125, 0.0,
-//     0.0, 0.1, 0.4, 1.4);
+std::shared_ptr<Problem> blastWave2D = std::make_shared<CircularRiemannProblem>(
+    "blastWave", -1.0, 1.0, -1.0, 1.0, 0.25, 1.0, 0.0, 0.0, 1.0, 0.125, 0.0,
+    0.0, 0.1, 0.4, 1.4);
 std::shared_ptr<Problem> toro1x = std::make_shared<RiemannProblem1Dx>(
     "toro1x", 0.0, 1.0, 0.2, 1.0, 0.75, 1.0, 0.125, 0.0, 0.1, 0.3, 1.4);
 std::shared_ptr<Problem> toro2x = std::make_shared<RiemannProblem1Dx>(
