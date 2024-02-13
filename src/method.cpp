@@ -9,13 +9,13 @@
 FEMALEMethod::FEMALEMethod(const std::string &name,
                            std::shared_ptr<Problem> pr_, size_t xSize_,
                            size_t ySize_, size_t order_)
-    : Method(name, pr_->name, pr_->tmin, pr_->tmax),
+    : Method(name, pr_->name, pr_->tmin, pr_->tmax, pr_->tOut, pr_->tMul),
       xSize(xSize_),
       ySize(ySize_),
       order(order_),
       kinematicMassQuadOrder(order * 2),
-      thermoMassQuadOrder(order * 2 - 1),
-      forceQuadOrder(order),
+      thermoMassQuadOrder(order * 2),
+      forceQuadOrder(order * 2),
       Nk((order * xSize + 1) * (order * ySize + 1)),
       Nt((order * xSize) * (order * ySize)),
       xmin(pr_->xmin),
@@ -45,10 +45,9 @@ FEMALEMethod::FEMALEMethod(const std::string &name,
       Mky(Nk, Nk),
       Mt_inv(Nt, Nt),
       Fx(Nk, Nt),
-      Fy(Nk, Nt),
-      rhoInitializer(pr_->rhoInitializer),
-      eosInitializer(pr_->eosInitializer) {
+      Fy(Nk, Nt) {
   assert(order > 0);
+  initInitializers(pr_);
   initBasisValues();
   initKinematicVectors(pr_);
   initThermodynamicVector(pr_);
@@ -60,12 +59,15 @@ FEMALEMethod::FEMALEMethod(const std::string &name,
 
 void FEMALEMethod::calc() {
   RK2step();
-  t += dt;
+  // t += dt;
 }
 void FEMALEMethod::calcdt() const {}
 
-void FEMALEMethod::dumpGrid() const {
-  std::string filename = std::format("{}_{:.3f}.txt", name, t);
+void FEMALEMethod::dumpData() const {
+  std::string filename = std::format("{}_{:.3f}.txt", problemName, t * tMul);
+  if (name != problemName) {
+    filename = name + "/" + filename;
+  }
   auto outputFunction = [this](std::ofstream ofs) {
     const size_t imax = xSize * order;
     const size_t jmax = ySize * order;
@@ -134,8 +136,32 @@ void FEMALEMethod::dumpGrid() const {
                                   ymin + celldy * (cellj + ylocal));
         double pij = eos->getp(rhoij, eij);
 
-        std::string line = std::format("{} {} {} {} {} {} {} {} {}", i, j, xij,
-                                       yij, uij, vij, rhoij, pij, eij);
+        std::string line = std::format(
+            "{} {} {:.6e} {:.6e} {:.6e} {:.6e} {:.6e} {:.6e} {:.6e}", i, j, xij,
+            yij, uij, vij, rhoij, pij, eij);
+        ofs << line << std::endl;
+      }
+    }
+  };
+  writer.dumpData(outputFunction, filename);
+}
+
+void FEMALEMethod::dumpGrid() const {
+  std::string filename =
+      std::format("{}_grid_{:.3f}.txt", problemName, t * tMul);
+  if (name != problemName) {
+    filename = name + "/" + filename;
+  }
+  auto outputFunction = [this](std::ofstream ofs) {
+    const size_t imax = xSize * order + 1;
+    const size_t jmax = ySize * order + 1;
+    ofs << imax << " " << jmax << std::endl;
+    for (size_t i = 0; i < imax; i++) {
+      for (size_t j = 0; j < jmax; j++) {
+        double xij = x(i * jmax + j);
+        double yij = y(i * jmax + j);
+
+        std::string line = std::format("{} {} {:.6e} {:.6e}", i, j, xij, yij);
         ofs << line << std::endl;
       }
     }
@@ -251,14 +277,18 @@ double FEMALEMethod::quadThermoCellMass(size_t celli, size_t cellj,
   return output;
 }
 
-std::array<double, 2> FEMALEMethod::quadForceCell(
-    size_t celli, size_t cellj, size_t basisKinematic, size_t basisThermo,
-    const Eigen::Matrix<double, Eigen::Dynamic, 1> &x,
-    const Eigen::Matrix<double, Eigen::Dynamic, 1> &y,
-    const Eigen::Matrix<double, Eigen::Dynamic, 1> &u,
-    const Eigen::Matrix<double, Eigen::Dynamic, 1> &v,
-    const Eigen::Matrix<double, Eigen::Dynamic, 1> &e) {
-  std::array<double, 2> output({0.0, 0.0});
+std::array<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic>, 2>
+FEMALEMethod::quadForceCell(size_t celli, size_t cellj,
+                            const Eigen::Matrix<double, Eigen::Dynamic, 1> &x,
+                            const Eigen::Matrix<double, Eigen::Dynamic, 1> &y,
+                            const Eigen::Matrix<double, Eigen::Dynamic, 1> &u,
+                            const Eigen::Matrix<double, Eigen::Dynamic, 1> &v,
+                            const Eigen::Matrix<double, Eigen::Dynamic, 1> &e) {
+  std::array<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic>, 2> output{
+      Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic>::Zero(
+          (order + 1) * (order + 1), order * order),
+      Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic>::Zero(
+          (order + 1) * (order + 1), order * order)};
 
   const size_t indMin = getLegendreStartIndex(forceQuadOrder);
   for (size_t i = 0; i < forceQuadOrder; i++) {
@@ -281,54 +311,70 @@ std::array<double, 2> FEMALEMethod::quadForceCell(
         jacobian(1, 1) += yk * basis2Ddy;
       }
       Eigen::JacobiSVD<decltype(jacobian)> svd(jacobian);
-      hmin = svd.singularValues().minCoeff() / order;
-
-      Eigen::Matrix<double, 2, 2> stressTensor =
-          calcStressTensor(u, v, e, jacobian, celli, cellj, i, j);
-      double basisKinematic2Ddx =
-          force1DdxKinematicValues[(basisKinematic % (order + 1)) *
-                                       forceQuadOrder +
-                                   i] *
-          force1DKinematicValues[(basisKinematic / (order + 1)) *
-                                     forceQuadOrder +
-                                 j];
-      double basisKinematic2Ddy =
-          force1DKinematicValues[(basisKinematic % (order + 1)) *
-                                     forceQuadOrder +
-                                 i] *
-          force1DdxKinematicValues[(basisKinematic / (order + 1)) *
-                                       forceQuadOrder +
-                                   j];
-      Eigen::Matrix<double, 2, 2> gradBasisx{
-          {basisKinematic2Ddx, basisKinematic2Ddy}, {0.0, 0.0}};
-      Eigen::Matrix<double, 2, 2> gradBasisy{
-          {0.0, 0.0}, {basisKinematic2Ddx, basisKinematic2Ddy}};
-      // Eigen::Matrix<double, 2, 2> gradBasisx{{basisKinematic2Ddx, 0.0},
-      //                                        {basisKinematic2Ddy, 0.0}};
-      // Eigen::Matrix<double, 2, 2> gradBasisy{{0.0, basisKinematic2Ddx},
-      //                                        {0.0, basisKinematic2Ddy}};
-      double thermobasis =
-          force1DThermoValues[(basisThermo % order) * forceQuadOrder + i] *
-          force1DThermoValues[(basisThermo / order) * forceQuadOrder + j];
+      double hmin = svd.singularValues().minCoeff() / order;
+      double soundSpeed = 0.0;
+      double rhoLocal = 0.0;
+      double maxViscosityCoeff = 0.0;
       double jacDet = std::abs(jacobian.determinant());
 
-      Eigen::Matrix<double, 2, 2> rhsx = jacobian.inverse();
-      Eigen::Matrix<double, 2, 2> rhsy = rhsx;
-      rhsx = rhsx * gradBasisx;
-      rhsx *= thermobasis * jacDet;
-      rhsy = rhsy * gradBasisy;
-      rhsy *= thermobasis * jacDet;
+      Eigen::Matrix<double, 2, 2> stressTensor =
+          calcStressTensor(u, v, e, jacobian, soundSpeed, rhoLocal,
+                           maxViscosityCoeff, celli, cellj, i, j);
 
-      output[0] +=
-          legendreWeights[indMin + i] * legendreWeights[indMin + j] *
-          (stressTensor(0, 0) * rhsx(0, 0) + stressTensor(0, 1) * rhsx(0, 1) +
-           stressTensor(1, 0) * rhsx(1, 0) + stressTensor(1, 1) * rhsx(1, 1));
-      output[1] +=
-          legendreWeights[indMin + i] * legendreWeights[indMin + j] *
-          (stressTensor(0, 0) * rhsy(0, 0) + stressTensor(0, 1) * rhsy(0, 1) +
-           stressTensor(1, 0) * rhsy(1, 0) + stressTensor(1, 1) * rhsy(1, 1));
+      for (size_t basisKinematic = 0;
+           basisKinematic < (order + 1) * (order + 1); basisKinematic++) {
+        for (size_t basisThermo = 0; basisThermo < order * order;
+             basisThermo++) {
+          double basisKinematic2Ddx =
+              force1DdxKinematicValues[(basisKinematic % (order + 1)) *
+                                           forceQuadOrder +
+                                       i] *
+              force1DKinematicValues[(basisKinematic / (order + 1)) *
+                                         forceQuadOrder +
+                                     j];
+          double basisKinematic2Ddy =
+              force1DKinematicValues[(basisKinematic % (order + 1)) *
+                                         forceQuadOrder +
+                                     i] *
+              force1DdxKinematicValues[(basisKinematic / (order + 1)) *
+                                           forceQuadOrder +
+                                       j];
+          Eigen::Matrix<double, 2, 2> gradBasisx{
+              {basisKinematic2Ddx, basisKinematic2Ddy}, {0.0, 0.0}};
+          Eigen::Matrix<double, 2, 2> gradBasisy{
+              {0.0, 0.0}, {basisKinematic2Ddx, basisKinematic2Ddy}};
+          double thermobasis =
+              force1DThermoValues[(basisThermo % order) * forceQuadOrder + i] *
+              force1DThermoValues[(basisThermo / order) * forceQuadOrder + j];
 
-      calcTau();
+          Eigen::Matrix<double, 2, 2> rhsx = jacobian.inverse();
+          Eigen::Matrix<double, 2, 2> rhsy = rhsx;
+          rhsx = rhsx * gradBasisx;
+          rhsx *= thermobasis * jacDet;
+          rhsy = rhsy * gradBasisy;
+          rhsy *= thermobasis * jacDet;
+
+          // output[0] += legendreWeights[indMin + i] *
+          //              legendreWeights[indMin + j] *
+          //              (stressTensor(0, 0) * rhsx(0, 0) +
+          //               stressTensor(0, 1) * rhsx(0, 1) +
+          //               stressTensor(1, 0) * rhsx(1, 0) +
+          //               stressTensor(1, 1) * rhsx(1, 1));
+          // output[1] += legendreWeights[indMin + i] *
+          //              legendreWeights[indMin + j] *
+          //              (stressTensor(0, 0) * rhsy(0, 0) +
+          //               stressTensor(0, 1) * rhsy(0, 1) +
+          //               stressTensor(1, 0) * rhsy(1, 0) +
+          //               stressTensor(1, 1) * rhsy(1, 1));
+          output[0](basisKinematic, basisThermo) +=
+              legendreWeights[indMin + i] * legendreWeights[indMin + j] *
+              (stressTensor.transpose() * rhsx).trace();
+          output[1](basisKinematic, basisThermo) +=
+              legendreWeights[indMin + i] * legendreWeights[indMin + j] *
+              (stressTensor.transpose() * rhsy).trace();
+        }
+      }
+      calcTau(hmin, soundSpeed, rhoLocal, maxViscosityCoeff);
     }
   }
   return output;
@@ -346,6 +392,27 @@ size_t FEMALEMethod::getThermodynamicIndexFromCell(const size_t celli,
                                                    const size_t k) const {
   assert(k < order * order);
   return celli * order * order * ySize + cellj * order * order + k;
+}
+
+void FEMALEMethod::initInitializers(std::shared_ptr<Problem> pr) {
+  rhoInitializer = [xmin = pr->xmin, xmax = pr->xmax, ymin = pr->ymin,
+                    ymax = pr->ymax, xSize = this->xSize, ySize = this->ySize,
+                    rhoInitializer = pr->rhoInitializer](double x, double y) {
+    double dx = (xmax - xmin) / xSize;
+    double dy = (ymax - ymin) / ySize;
+    double xij = xmin + (std::floor((x - xmin) / dx) + 0.5) * dx;
+    double yij = ymin + (std::floor((y - ymin) / dy) + 0.5) * dy;
+    return rhoInitializer(xij, yij);
+  };
+  eosInitializer = [xmin = pr->xmin, xmax = pr->xmax, ymin = pr->ymin,
+                    ymax = pr->ymax, xSize = this->xSize, ySize = this->ySize,
+                    eosInitializer = pr->eosInitializer](double x, double y) {
+    double dx = (xmax - xmin) / xSize;
+    double dy = (ymax - ymin) / ySize;
+    double xij = xmin + (std::floor((x - xmin) / dx) + 0.5) * dx;
+    double yij = ymin + (std::floor((y - ymin) / dy) + 0.5) * dy;
+    return eosInitializer(xij, yij);
+  };
 }
 
 void FEMALEMethod::initBasisValues() {
@@ -469,25 +536,24 @@ void FEMALEMethod::initKinematicVectors(std::shared_ptr<Problem> pr) {
 void FEMALEMethod::initThermodynamicVector(std::shared_ptr<Problem> pr) {
   double celldx = (pr->xmax - pr->xmin) / xSize;
   double celldy = (pr->ymax - pr->ymin) / ySize;
-  for (size_t i = 0; i < xSize; i++) {
-    for (size_t j = 0; j < ySize; j++) {
+  for (size_t celli = 0; celli < xSize; celli++) {
+    for (size_t cellj = 0; cellj < ySize; cellj++) {
+      double localdx = 0.5;
+      double localdy = 0.5;
       for (size_t k = 0; k < order * order; k++) {
-        double localdx = 0.5;
-        double localdy = 0.5;
-        if (order != 1) {
-          size_t indMin = getLobattoStartIndex(order - 1);
-          size_t lobattoxIndex = indMin + k % order;
-          size_t lobattoyIndex = indMin + k / order;
-          localdx = lobattoAbscissas[lobattoxIndex];
-          localdy = lobattoAbscissas[lobattoyIndex];
-        }
-        double xij = pr->xmin + celldx * (i + localdx);
-        double yij = pr->ymin + celldy * (j + localdy);
+        // if (order != 1) {
+        //   size_t indMin = getLobattoStartIndex(order - 1);
+        //   size_t lobattoxIndex = indMin + k % order;
+        //   size_t lobattoyIndex = indMin + k / order;
+        //   localdx = lobattoAbscissas[lobattoxIndex];
+        //   localdy = lobattoAbscissas[lobattoyIndex];
+        // }
+        double xij = pr->xmin + celldx * (celli + localdx);
+        double yij = pr->ymin + celldy * (cellj + localdy);
         auto eos = pr->eosInitializer(xij, yij);
         auto p = pr->pInitializer(xij, yij);
         auto rho = pr->rhoInitializer(xij, yij);
-        e(i * order * order * ySize + j * order * order + k) =
-            eos->gete(rho, p);
+        e(getThermodynamicIndexFromCell(celli, cellj, k)) = eos->gete(rho, p);
       }
     }
   }
@@ -573,19 +639,19 @@ void FEMALEMethod::calcForceMatrices(
     const Eigen::Matrix<double, Eigen::Dynamic, 1> &u,
     const Eigen::Matrix<double, Eigen::Dynamic, 1> &v,
     const Eigen::Matrix<double, Eigen::Dynamic, 1> &e) {
+#pragma omp parallel for
   for (size_t celli = 0; celli < xSize; celli++) {
     for (size_t cellj = 0; cellj < ySize; cellj++) {
+      std::array<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic>, 2>
+          quadResult = quadForceCell(celli, cellj, x, y, u, v, e);
       for (size_t kinematikk = 0; kinematikk < (order + 1) * (order + 1);
            kinematikk++) {
         for (size_t thermok = 0; thermok < order * order; thermok++) {
-          std::array<double, 2> quadResult =
-              quadForceCell(celli, cellj, kinematikk, thermok, x, y, u, v, e);
-
           size_t indI = getKinematicIndexFromCell(celli, cellj, kinematikk);
           size_t indJ = getThermodynamicIndexFromCell(celli, cellj, thermok);
 
-          Fx.coeffRef(indI, indJ) = quadResult[0];
-          Fy.coeffRef(indI, indJ) = quadResult[1];
+          Fx.coeffRef(indI, indJ) = quadResult[0](kinematikk, thermok);
+          Fy.coeffRef(indI, indJ) = quadResult[1](kinematikk, thermok);
         }
       }
     }
@@ -597,8 +663,9 @@ Eigen::Matrix<double, 2, 2> FEMALEMethod::calcStressTensor(
     const Eigen::Matrix<double, Eigen::Dynamic, 1> &u,
     const Eigen::Matrix<double, Eigen::Dynamic, 1> &v,
     const Eigen::Matrix<double, Eigen::Dynamic, 1> &e,
-    const Eigen::Matrix<double, 2, 2> &jacobian, const size_t celli,
-    const size_t cellj, const size_t i, const size_t j) {
+    const Eigen::Matrix<double, 2, 2> &jacobian, double &soundSpeed,
+    double &rhoLocal, double &maxViscosityCoeff, const size_t celli,
+    const size_t cellj, const size_t i, const size_t j) const {
   Eigen::Matrix<double, 2, 2> stressTensor =
       Eigen::Matrix<double, 2, 2>::Zero();
 
@@ -636,18 +703,17 @@ Eigen::Matrix<double, 2, 2> FEMALEMethod::calcStressTensor(
   }
 
   double rhoInitial = rhoInitializer(xij, yij);
-  double rhoLocal = rhoInitial * std::abs(jacobianInitial.determinant() /
-                                          jacobian.determinant());
+  rhoLocal = rhoInitial *
+             std::abs(jacobianInitial.determinant() / jacobian.determinant());
 
   auto eos = eosInitializer(xij, yij);
   double pLocal = eos->getp(rhoLocal, eLocal);
+  soundSpeed = eos->getc(rhoLocal, pLocal);
 
   stressTensor = -pLocal * Eigen::Matrix<double, 2, 2>::Identity();
-  stressTensor += calcArtificialViscosity(u, v, jacobian, jacobianInitial,
-                                          celli, cellj, i, j, rhoLocal, pLocal);
-
-  soundSpeed = eos->getc(rhoLocal, pLocal);
-  rhoTau = rhoLocal;
+  stressTensor +=
+      calcArtificialViscosity(u, v, jacobian, jacobianInitial, soundSpeed,
+                              rhoLocal, maxViscosityCoeff, celli, cellj, i, j);
 
   return stressTensor;
 }
@@ -656,9 +722,9 @@ Eigen::Matrix<double, 2, 2> FEMALEMethod::calcArtificialViscosity(
     const Eigen::Matrix<double, Eigen::Dynamic, 1> &u,
     const Eigen::Matrix<double, Eigen::Dynamic, 1> &v,
     const Eigen::Matrix<double, 2, 2> &jacobian,
-    const Eigen::Matrix<double, 2, 2> &jacobianInitial, const size_t celli,
-    const size_t cellj, const size_t i, const size_t j, double rhoLocal,
-    double pLocal) {
+    const Eigen::Matrix<double, 2, 2> &jacobianInitial, double soundSpeed,
+    double rhoLocal, double &maxViscosityCoeff, const size_t celli,
+    const size_t cellj, const size_t i, const size_t j) const {
   Eigen::Matrix<double, 2, 2> output = Eigen::Matrix<double, 2, 2>::Zero();
 
   Eigen::Matrix<double, 2, 2> velocityGrad =
@@ -689,12 +755,10 @@ Eigen::Matrix<double, 2, 2> FEMALEMethod::calcArtificialViscosity(
   double e2 = eigensolver.eigenvalues()(1);
   Eigen::Matrix<double, 2, 1> v1 = eigensolver.eigenvectors().col(0);
   Eigen::Matrix<double, 2, 1> v2 = eigensolver.eigenvectors().col(1);
-  double viscosityCoeff1 =
-      calcViscosityCoeff(jacobian, jacobianInitial, velocityGrad, e1, v1, celli,
-                         cellj, i, j, rhoLocal, pLocal);
-  double viscosityCoeff2 =
-      calcViscosityCoeff(jacobian, jacobianInitial, velocityGrad, e2, v2, celli,
-                         cellj, i, j, rhoLocal, pLocal);
+  double viscosityCoeff1 = calcViscosityCoeff(
+      jacobian, jacobianInitial, velocityGrad, e1, v1, soundSpeed, rhoLocal);
+  double viscosityCoeff2 = calcViscosityCoeff(
+      jacobian, jacobianInitial, velocityGrad, e2, v2, soundSpeed, rhoLocal);
 
   Eigen::Matrix<double, 2, 2> v1Tensor{{v1(0) * v1(0), v1(0) * v1(1)},
                                        {v1(0) * v1(1), v1(1) * v1(1)}};
@@ -712,17 +776,8 @@ double FEMALEMethod::calcViscosityCoeff(
     const Eigen::Matrix<double, 2, 2> &jacobian,
     const Eigen::Matrix<double, 2, 2> &jacobianInitial,
     const Eigen::Matrix<double, 2, 2> &velocityGrad, double eigenvalue,
-    const Eigen::Matrix<double, 2, 1> &eigenvector, const size_t celli,
-    const size_t cellj, const size_t i, const size_t j, double rhoLocal,
-    double pLocal) {
-  const size_t indMin = getLegendreStartIndex(forceQuadOrder);
-  const double celldx = (xmax - xmin) / xSize;
-  const double celldy = (ymax - ymin) / ySize;
-  const double xlocal = legendreAbscissas[indMin + i];
-  const double ylocal = legendreAbscissas[indMin + j];
-  const double xij = xmin + celldx * (celli + xlocal);
-  const double yij = ymin + celldy * (cellj + ylocal);
-
+    const Eigen::Matrix<double, 2, 1> &eigenvector, double soundSpeed,
+    double rhoLocal) const {
   double psi0 = 0.0;
   double velgradNorm = velocityGrad.norm();
   if (velgradNorm != 0.0) {
@@ -737,7 +792,6 @@ double FEMALEMethod::calcViscosityCoeff(
   Eigen::Matrix<double, 2, 2> jacobianMapping = jacobianInitial_inv * jacobian;
   double localLengthScale =
       l0 * (jacobianMapping * eigenvector).norm() / eigenvector.norm();
-  double soundSpeed = eosInitializer(xij, yij)->getc(rhoLocal, pLocal);
 
   double lhs = q2 * localLengthScale * localLengthScale * std::abs(eigenvalue);
   double rhs = q1 * psi0 * psi1 * localLengthScale * soundSpeed;
@@ -745,12 +799,16 @@ double FEMALEMethod::calcViscosityCoeff(
   return output;
 }
 
-void FEMALEMethod::calcTau() {
-  double denominator =
-      soundSpeed / hmin + alphamu * maxViscosityCoeff / (rhoTau * hmin * hmin);
+void FEMALEMethod::calcTau(double hmin, double soundSpeed, double rhoLocal,
+                           double maxViscosityCoeff) {
+  double denominator = soundSpeed / hmin +
+                       alphamu * maxViscosityCoeff / (rhoLocal * hmin * hmin);
   double tauLocal = alpha / denominator;
-  if (tauLocal < tau) {
-    tau = tauLocal;
+#pragma omp critical(tauUpdate)
+  {
+    if (tauLocal < tau) {
+      tau = tauLocal;
+    }
   }
 }
 
@@ -1087,6 +1145,7 @@ void FEMALEMethod::RK2step() {
   x05 = x + dt * u05;
   y05 = y + dt * v05;
 
+  t += dt;
   if (dt <= gamma * tau) {
     dt = beta2 * dt;
   }

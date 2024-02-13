@@ -12,7 +12,7 @@
 
 class Writer {
  public:
-  Writer(const std::string &problemName);
+  Writer(const std::string &problemName, const std::string &name);
   ~Writer();
 
   void dumpData(std::function<void(std::ofstream ofs)>,

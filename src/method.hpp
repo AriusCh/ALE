@@ -15,14 +15,17 @@ enum class Status { eExit, eStepStart, eCalcdt };
 class Method {
  public:
   Method(const std::string &name_, const std::string &problemName_,
-         double tmin_, double tmax_)
+         double tmin_, double tmax_, const std::deque<double> &tOut_,
+         double tMul_)
       : name(name_),
         problemName(problemName_),
         dt(tmax_ - tmin_),
         t(tmin_),
         tmin(tmin_),
         tmax(tmax_),
-        writer(name_) {}
+        tOut(tOut_),
+        tMul(tMul_),
+        writer(problemName, name) {}
   Method(Method const &rhs) = default;
   Method(Method &&rhs) = default;
 
@@ -35,6 +38,7 @@ class Method {
   virtual void calc() = 0;
   virtual void calcdt() const = 0;
 
+  virtual void dumpData() const = 0;
   virtual void dumpGrid() const = 0;
 
  public:
@@ -46,6 +50,8 @@ class Method {
 
   const double tmin;
   const double tmax;
+  std::deque<double> tOut;
+  const double tMul;
 
   Writer writer;
 };
@@ -66,6 +72,7 @@ class FEMALEMethod : public Method {
   virtual void calc();
   virtual void calcdt() const;
 
+  virtual void dumpData() const;
   virtual void dumpGrid() const;
 
  private:
@@ -73,19 +80,20 @@ class FEMALEMethod : public Method {
                                size_t basisj);
   double quadThermoCellMass(size_t celli, size_t cellj, size_t basisi,
                             size_t basisj);
-  std::array<double, 2> quadForceCell(
-      size_t celli, size_t cellj, size_t basisKinematic, size_t basisThermo,
-      const Eigen::Matrix<double, Eigen::Dynamic, 1> &x,
-      const Eigen::Matrix<double, Eigen::Dynamic, 1> &y,
-      const Eigen::Matrix<double, Eigen::Dynamic, 1> &u,
-      const Eigen::Matrix<double, Eigen::Dynamic, 1> &v,
-      const Eigen::Matrix<double, Eigen::Dynamic, 1> &e);
+  std::array<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic>, 2>
+  quadForceCell(size_t celli, size_t cellj,
+                const Eigen::Matrix<double, Eigen::Dynamic, 1> &x,
+                const Eigen::Matrix<double, Eigen::Dynamic, 1> &y,
+                const Eigen::Matrix<double, Eigen::Dynamic, 1> &u,
+                const Eigen::Matrix<double, Eigen::Dynamic, 1> &v,
+                const Eigen::Matrix<double, Eigen::Dynamic, 1> &e);
 
   size_t getKinematicIndexFromCell(const size_t celli, const size_t cellj,
                                    const size_t k) const;
   size_t getThermodynamicIndexFromCell(const size_t celli, const size_t cellj,
                                        const size_t k) const;
 
+  void initInitializers(std::shared_ptr<Problem> pr);
   void initBasisValues();
   void initKinematicMassBasisValues();
   void initThermodynamicMassBasisValues();
@@ -107,25 +115,25 @@ class FEMALEMethod : public Method {
       const Eigen::Matrix<double, Eigen::Dynamic, 1> &u,
       const Eigen::Matrix<double, Eigen::Dynamic, 1> &v,
       const Eigen::Matrix<double, Eigen::Dynamic, 1> &e,
-      const Eigen::Matrix<double, 2, 2> &jacobian, const size_t celli,
-      const size_t cellj, const size_t i, const size_t j);
+      const Eigen::Matrix<double, 2, 2> &jacobian, double &soundSpeed,
+      double &rhoLocal, double &maxViscosityCoeff, const size_t celli,
+      const size_t cellj, const size_t i, const size_t j) const;
   Eigen::Matrix<double, 2, 2> calcArtificialViscosity(
       const Eigen::Matrix<double, Eigen::Dynamic, 1> &u,
       const Eigen::Matrix<double, Eigen::Dynamic, 1> &v,
       const Eigen::Matrix<double, 2, 2> &jacobian,
-      const Eigen::Matrix<double, 2, 2> &jacobianInitial, const size_t celli,
-      const size_t cellj, const size_t i, const size_t j, double rhoLocal,
-      double pLocal);
+      const Eigen::Matrix<double, 2, 2> &jacobianInitial, double soundSpeed,
+      double rhoLocal, double &maxViscosityCoeff, const size_t celli,
+      const size_t cellj, const size_t i, const size_t j) const;
   double calcViscosityCoeff(const Eigen::Matrix<double, 2, 2> &jacobian,
                             const Eigen::Matrix<double, 2, 2> &jacobianInitial,
                             const Eigen::Matrix<double, 2, 2> &velocityGrad,
                             double eigenvalue,
                             const Eigen::Matrix<double, 2, 1> &eigenvector,
-                            const size_t celli, const size_t cellj,
-                            const size_t i, const size_t j, double rhoLocal,
-                            double pLocal);
+                            double soundSpeed, double rhoLocal) const;
 
-  void calcTau();
+  void calcTau(double hmin, double soundSpeed, double rhoLocal,
+               double maxViscosityCoeff);
 
   void resolveBoundaryMass();
   void resolveLeftBoundaryMass();
@@ -198,10 +206,10 @@ class FEMALEMethod : public Method {
       kinematicSolvery;
 
   // Time control vars
-  double hmin;
-  double rhoTau;
-  double soundSpeed;
-  double maxViscosityCoeff = 0.0;
+  // double hmin;
+  // double rhoTau;
+  // double soundSpeed;
+  // double maxViscosityCoeff = 0.0;
   double tau;
 
   std::vector<double> kinematicMass1DValues;

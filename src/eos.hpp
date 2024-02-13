@@ -43,4 +43,31 @@ class EOSIdeal : public EOS {
   double gamma;
 };
 
+class EOSMGAlPrecise6 : public EOS {
+ public:
+  EOSMGAlPrecise6()
+      : rho0(2750.), p0(560.964e9), a(1.12657), b(0.975511), ph(15.e9) {}
+
+ public:
+  double getp(double rho, double e) const override;
+  double gete(double rho, double p) const override;
+  double getc(double rho, double p) const override;
+  double gets(double rho, double p) const override;
+  double getdpdrho(double rho, double e) const;
+  double getdpde(double rho, double e) const;
+
+ private:
+  double G(double x) const;
+  double GPrime(double x) const;
+  // double Gx1(double x) const;
+  // double Gx2(double x) const;
+  double pCold(double rho) const;
+  double pColdPrime(double rho) const;
+  double eCold(double rho) const;
+  double eColdPrime(double rho) const;
+
+ private:
+  const double rho0, p0, a, b, ph;
+};
+
 #endif

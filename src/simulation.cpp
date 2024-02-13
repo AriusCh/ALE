@@ -10,10 +10,18 @@ void Simulation::run() {
 
   int iterationNum = 0;
   logSimulationStart();
+  method->dumpData();
   method->dumpGrid();
   auto simStart = std::chrono::high_resolution_clock::now();
   while (method->t < method->tmax) {
     method->calcdt();
+    double tmpDt = method->dt;
+    if (!method->tOut.empty()) {
+      double tNext = method->tOut.front();
+      if (method->t + method->dt > tNext) {
+        method->dt = tNext - method->t;
+      }
+    }
     if (method->t + method->dt > method->tmax) {
       method->dt = method->tmax - method->t;
     }
@@ -26,8 +34,20 @@ void Simulation::run() {
                           std::chrono::high_resolution_clock::now() - start)
                           .count();
 
-    logSuccessfulIteration(iterationNum, method->t, method->dt, calcTime);
+    double remTime = (method->tmax - method->t) / method->dt * calcTime;
 
+    logSuccessfulIteration(iterationNum, method->t, method->dt, calcTime,
+                           remTime);
+
+    if (!method->tOut.empty()) {
+      double tNext = method->tOut.front();
+      if (method->t >= tNext) {
+        method->dumpData();
+        method->dumpGrid();
+        method->tOut.pop_front();
+        method->dt = tmpDt;
+      }
+    }
     iterationNum++;
   }
   double simulationTime =
@@ -35,14 +55,17 @@ void Simulation::run() {
                                     simStart)
           .count();
   logSimulationEnd(simulationTime);
+  method->dumpData();
   method->dumpGrid();
 }
 
 void Simulation::logSuccessfulIteration(int iterationNumber, double t,
-                                        double dt, double calcTime) const {
+                                        double dt, double calcTime,
+                                        double remTime) const {
   std::string message = std::format(
-      "PROBLEM: {} ITERATION: {:6} t: {:6.6e} dt: {:6.6e} STEP TIME: {:.6f}",
-      method->problemName, iterationNumber, t, dt, calcTime);
+      "PROBLEM: {} ITERATION: {:6} t: {:6.6e} dt: {:6.6e} STEP TIME: {:.6f} "
+      "REMAINING TIME: {:.6f}",
+      method->problemName, iterationNumber, t, dt, calcTime, remTime);
 
   logger.log(message, LogLevel::eGeneral);
 }

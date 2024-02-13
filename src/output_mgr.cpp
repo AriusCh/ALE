@@ -2,7 +2,7 @@
 
 #include <format>
 
-Writer::Writer(const std::string& problemName) {
+Writer::Writer(const std::string& problemName, const std::string& name) {
   if (!std::filesystem::is_directory("output")) {
     std::filesystem::create_directory("output");
     logger.log("Created directory \"output\"", LogLevel::eInfo);
@@ -11,6 +11,14 @@ Writer::Writer(const std::string& problemName) {
     std::filesystem::create_directory("output/" + problemName);
     logger.log("Created directory \"output/" + problemName + "\"",
                LogLevel::eInfo);
+  }
+  if (name != problemName) {
+    if (!std::filesystem::is_directory("output/" + problemName + "/" + name)) {
+      std::filesystem::create_directory("output/" + problemName + "/" + name);
+      logger.log(
+          "Created directory \"output/" + problemName + "/" + name + "\"",
+          LogLevel::eInfo);
+    }
   }
   outputDirPath = std::filesystem::current_path() / "output" / problemName;
 }

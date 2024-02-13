@@ -22,7 +22,7 @@ class Simulation {
 
  private:
   void logSuccessfulIteration(int iterationNumber, double t, double dt,
-                              double calcTime) const;
+                              double calcTime, double remTime) const;
   void logSimulationStart() const;
   void logSimulationEnd(double simTime) const;
 
