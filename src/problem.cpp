@@ -4,6 +4,222 @@
 #include <format>
 #include <fstream>
 
+Problem Problem::createRiemannProblem1Dx(const std::string &name, double xmin,
+                                         double xmax, double tmax,
+                                         const std::deque<double> &tOut,
+                                         double uL, double rhoL, double pL,
+                                         double rhoR, double uR, double pR,
+                                         double spl, double gamma) {
+  assert(spl >= xmin && spl <= xmax);
+  double ymin = 0.0;
+  double ymax = 1.0;
+  double tmin = 0.0;
+  double tMul = 1.0;
+  BoundaryType leftBoundaryType = BoundaryType::eWall;
+  BoundaryType topBoundaryType = BoundaryType::eWall;
+  BoundaryType rightBoundaryType = BoundaryType::eWall;
+  BoundaryType bottomBoundaryType = BoundaryType::eWall;
+  ProblemDimension dimension = ProblemDimension::e1D;
+  auto uInitializer = [uL, uR, spl](double x, [[maybe_unused]] double y) {
+    if (x < spl) {
+      return uL;
+    } else {
+      return uR;
+    }
+  };
+  auto vInitializer = []([[maybe_unused]] double x, [[maybe_unused]] double y) {
+    return 0.0;
+  };
+  auto rhoInitializer = [rhoL, rhoR, spl](double x, [[maybe_unused]] double y) {
+    if (x < spl) {
+      return rhoL;
+
+    } else {
+      return rhoR;
+    }
+  };
+  auto pInitializer = [pL, pR, spl](double x, [[maybe_unused]] double y) {
+    if (x < spl) {
+      return pL;
+    } else {
+      return pR;
+    }
+  };
+  auto eosInitializer = [gamma]([[maybe_unused]] double x,
+                                [[maybe_unused]] double y) {
+    static std::shared_ptr<EOSIdeal> eos = std::make_shared<EOSIdeal>(gamma);
+    return eos;
+  };
+  return Problem(name, xmin, xmax, ymin, ymax, tmin, tmax, tOut, tMul,
+                 leftBoundaryType, topBoundaryType, rightBoundaryType,
+                 bottomBoundaryType, dimension, uInitializer, vInitializer,
+                 rhoInitializer, pInitializer, eosInitializer);
+}
+
+Problem Problem::createCircularRiemannProblem(
+    const std::string &name, double xmin, double xmax, double ymin, double ymax,
+    double tmax, const std::deque<double> &tOut, double uIn, double vIn,
+    double rhoIn, double pIn, double uOut, double vOut, double rhoOut,
+    double pOut, double spl, double gamma) {
+  assert(spl >= xmin && spl <= xmax);
+  assert(spl >= ymin && spl <= ymax);
+
+  double tmin = 0.0;
+  double tMul = 1.0;
+  BoundaryType leftBoundaryType = BoundaryType::eWall;
+  BoundaryType topBoundaryType = BoundaryType::eWall;
+  BoundaryType rightBoundaryType = BoundaryType::eWall;
+  BoundaryType bottomBoundaryType = BoundaryType::eWall;
+  ProblemDimension dimension = ProblemDimension::e2D;
+  auto uInitializer = [uIn, uOut, spl](double x, double y) {
+    if (x * x + y * y <= spl * spl) {
+      return uIn;
+    } else {
+      return uOut;
+    }
+  };
+  auto vInitializer = [vIn, vOut, spl](double x, double y) {
+    if (x * x + y * y <= spl * spl) {
+      return vIn;
+    } else {
+      return vOut;
+    }
+  };
+  auto rhoInitializer = [rhoIn, rhoOut, spl](double x, double y) {
+    if (x * x + y * y <= spl * spl) {
+      return rhoIn;
+    } else {
+      return rhoOut;
+    }
+  };
+  auto pInitializer = [pIn, pOut, spl](double x, double y) {
+    if (x * x + y * y <= spl * spl) {
+      return pIn;
+    } else {
+      return pOut;
+    }
+  };
+  auto eosInitializer = [gamma]([[maybe_unused]] double x,
+                                [[maybe_unused]] double y) {
+    static std::shared_ptr<EOSIdeal> eos = std::make_shared<EOSIdeal>(gamma);
+    return eos;
+  };
+
+  return Problem(name, xmin, xmax, ymin, ymax, tmin, tmax, tOut, tMul,
+                 leftBoundaryType, topBoundaryType, rightBoundaryType,
+                 bottomBoundaryType, dimension, uInitializer, vInitializer,
+                 rhoInitializer, pInitializer, eosInitializer);
+}
+Problem Problem::createLaserVolumeTargetProblem(
+    const std::string &name, double xmin, double xmax, double ymin, double tmax,
+    const std::deque<double> &tOut, double rhoM, double pCold, double pHeat,
+    double RL, double dSkin) {
+  assert(ymin < -dSkin);
+
+  double ymax = 0.0;
+  double tmin = 0.0;
+  double tMul = 1e12;
+  BoundaryType leftBoundaryType = BoundaryType::eWall;
+  BoundaryType topBoundaryType = BoundaryType::eFree;
+  BoundaryType rightBoundaryType = BoundaryType::eWall;
+  BoundaryType bottomBoundaryType = BoundaryType::eWall;
+  ProblemDimension dimension = ProblemDimension::e2D;
+
+  auto uInitializer = []([[maybe_unused]] double x, [[maybe_unused]] double y) {
+    return 0.0;
+  };
+  auto vInitializer = []([[maybe_unused]] double x, [[maybe_unused]] double y) {
+    return 0.0;
+  };
+  auto rhoInitializer = [rhoM]([[maybe_unused]] double x,
+                               [[maybe_unused]] double y) { return rhoM; };
+  auto pInitializer = [pCold, pHeat, RL, dSkin](double x, double y) {
+    if (std::abs(x) <= RL && y > -dSkin) {
+      return pHeat;
+    } else {
+      return pCold;
+    }
+  };
+  auto eosInitializer = []([[maybe_unused]] double x,
+                           [[maybe_unused]] double y) {
+    static std::shared_ptr<EOSMGAlPrecise6> eos =
+        std::make_shared<EOSMGAlPrecise6>();
+    return eos;
+  };
+
+  return Problem(name, xmin, xmax, ymin, ymax, tmin, tmax, tOut, tMul,
+                 leftBoundaryType, topBoundaryType, rightBoundaryType,
+                 bottomBoundaryType, dimension, uInitializer, vInitializer,
+                 rhoInitializer, pInitializer, eosInitializer);
+}
+
+Problem Problem::createTriplePointProblem(
+    const std::string &name, double xmin, double xmax, double ymin, double ymax,
+    double tmax, const std::deque<double> &tOut, double vSplit, double hSplit,
+    double rhoLeft, double pLeft, double gammaLeft, double rhoTop, double pTop,
+    double gammaTop, double rhoBottom, double pBottom, double gammaBottom) {
+  assert(xLeft > xmin && xLeft < xmax);
+  assert(yTop > ymin && yTop < ymax);
+
+  double tmin = 0.0;
+  double tMul = 1.0;
+
+  BoundaryType leftBoundaryType = BoundaryType::eWall;
+  BoundaryType topBoundaryType = BoundaryType::eWall;
+  BoundaryType rightBoundaryType = BoundaryType::eWall;
+  BoundaryType bottomBoundaryType = BoundaryType::eWall;
+  ProblemDimension dimension = ProblemDimension::e2D;
+
+  auto uInitializer = []([[maybe_unused]] double x, [[maybe_unused]] double y) {
+    return 0.0;
+  };
+  auto vInitializer = []([[maybe_unused]] double x, [[maybe_unused]] double y) {
+    return 0.0;
+  };
+  auto rhoInitializer = [rhoLeft, rhoTop, rhoBottom, vSplit, hSplit](double x,
+                                                                     double y) {
+    if (x <= vSplit) {
+      return rhoLeft;
+    }
+    if (y <= hSplit) {
+      return rhoBottom;
+    }
+    return rhoTop;
+  };
+  auto pInitializer = [pLeft, pTop, pBottom, vSplit, hSplit](double x,
+                                                             double y) {
+    if (x <= vSplit) {
+      return pLeft;
+    }
+    if (y <= hSplit) {
+      return pBottom;
+    }
+    return pTop;
+  };
+
+  auto eosInitializer = [gammaLeft, gammaTop, gammaBottom, vSplit, hSplit](
+                            double x, double y) {
+    static std::shared_ptr<EOSIdeal> eosLeft =
+        std::make_shared<EOSIdeal>(gammaLeft);
+    static std::shared_ptr<EOSIdeal> eosBottom =
+        std::make_shared<EOSIdeal>(gammaBottom);
+    static std::shared_ptr<EOSIdeal> eosTop =
+        std::make_shared<EOSIdeal>(gammaTop);
+    if (x <= vSplit) {
+      return eosLeft;
+    }
+    if (y <= hSplit) {
+      return eosBottom;
+    }
+    return eosTop;
+  };
+
+  return Problem(name, xmin, xmax, ymin, ymax, tmin, tmax, tOut, tMul,
+                 leftBoundaryType, topBoundaryType, rightBoundaryType,
+                 bottomBoundaryType, dimension, uInitializer, vInitializer,
+                 rhoInitializer, pInitializer, eosInitializer);
+}
+
 Problem::Problem(
     const std::string &name_, double xmin_, double xmax_, double ymin_,
     double ymax_, double tmin_, double tmax_, const std::deque<double> &tOut_,
@@ -34,182 +250,6 @@ Problem::Problem(
       rhoInitializer(rhoInitializer_),
       pInitializer(pInitializer_),
       eosInitializer(eosInitializer_) {}
-
-RiemannProblem1Dx::RiemannProblem1Dx(const std::string &name, double xmin,
-                                     double xmax, double tmax,
-                                     const std::deque<double> &tOut,
-                                     double rhoL, double uL, double pL,
-                                     double rhoR, double uR, double pR,
-                                     double spl, double gamma)
-    : Problem(
-          name, xmin, xmax, 0.0, 1.0, 0.0, tmax, tOut, 1.0, BoundaryType::eWall,
-          BoundaryType::eWall, BoundaryType::eWall, BoundaryType::eWall,
-          ProblemDimension::e1D,
-          [uL, uR, spl](double x, [[maybe_unused]] double y) {
-            if (x < spl) {
-              return uL;
-            } else {
-              return uR;
-            }
-          },
-          []([[maybe_unused]] double x, [[maybe_unused]] double y) {
-            return 0.0;
-          },
-          [rhoL, rhoR, spl](double x, [[maybe_unused]] double y) {
-            if (x < spl) {
-              return rhoL;
-
-            } else {
-              return rhoR;
-            }
-          },
-          [pL, pR, spl](double x, [[maybe_unused]] double y) {
-            if (x < spl) {
-              return pL;
-            } else {
-              return pR;
-            }
-          },
-          [gamma]([[maybe_unused]] double x, [[maybe_unused]] double y) {
-            static std::shared_ptr<EOSIdeal> eos =
-                std::make_shared<EOSIdeal>(gamma);
-            return eos;
-          }) {
-  assert(spl >= xmin && spl <= xmax);
-}
-
-CircularRiemannProblem::CircularRiemannProblem(
-    const std::string &name, double xmin, double xmax, double ymin, double ymax,
-    double tmax, const std::deque<double> &tOut, double rhoL, double uL,
-    double vL, double pL, double rhoR, double uR, double vR, double pR,
-    double spl, double gamma)
-    : Problem(
-          name, xmin, xmax, ymin, ymax, 0.0, tmax, tOut, 1.0,
-          BoundaryType::eWall, BoundaryType::eWall, BoundaryType::eWall,
-          BoundaryType::eWall, ProblemDimension::e2D,
-          [uL, uR, spl](double x, double y) {
-            if (x * x + y * y <= spl * spl) {
-              return uL;
-            } else {
-              return uR;
-            }
-          },
-          [vL, vR, spl](double x, double y) {
-            if (x * x + y * y <= spl * spl) {
-              return vL;
-            } else {
-              return vR;
-            }
-          },
-          [rhoL, rhoR, spl](double x, double y) {
-            if (x * x + y * y <= spl * spl) {
-              return rhoL;
-            } else {
-              return rhoR;
-            }
-          },
-          [pL, pR, spl](double x, double y) {
-            if (x * x + y * y <= spl * spl) {
-              return pL;
-            } else {
-              return pR;
-            }
-          },
-          [gamma]([[maybe_unused]] double x, [[maybe_unused]] double y) {
-            static std::shared_ptr<EOSIdeal> eos =
-                std::make_shared<EOSIdeal>(gamma);
-            return eos;
-          }) {
-  assert(spl >= xmin && spl <= xmax);
-}
-
-LaserVolumeTargetProblem::LaserVolumeTargetProblem(
-    const std::string &name, double xmin, double xmax, double ymin, double tmax,
-    const std::deque<double> &tOut, double rhoM, double pCold, double pHeat,
-    double RL, double dSkin)
-    : Problem(
-          name, xmin, xmax, ymin, 0.0, 0.0, tmax, tOut, 1.0e12,
-          BoundaryType::eWall, BoundaryType::eFree, BoundaryType::eWall,
-          BoundaryType::eWall, ProblemDimension::e2D,
-          []([[maybe_unused]] double x, [[maybe_unused]] double y) {
-            return 0.0;
-          },
-          []([[maybe_unused]] double x, [[maybe_unused]] double y) {
-            return 0.0;
-          },
-          [rhoM]([[maybe_unused]] double x, [[maybe_unused]] double y) {
-            return rhoM;
-          },
-          [pCold, pHeat, RL, dSkin](double x, double y) {
-            if (std::abs(x) <= RL && y > -dSkin) {
-              return pHeat;
-            } else {
-              return pCold;
-            }
-          },
-          []([[maybe_unused]] double x, [[maybe_unused]] double y) {
-            static std::shared_ptr<EOSMGAlPrecise6> eos =
-                std::make_shared<EOSMGAlPrecise6>();
-            return eos;
-          }) {}
-
-TriplePointShock::TriplePointShock(const std::string &name, double xmin,
-                                   double xmax, double ymin, double ymax,
-                                   double tmax, const std::deque<double> &tOut,
-                                   double xLeft, double yTop, double rhoLeft,
-                                   double pLeft, double rhoBottom,
-                                   double pBottom, double rhoTop, double pTop,
-                                   double gammaLeft, double gammaBottom,
-                                   double gammaTop)
-    : Problem(
-          name, xmin, xmax, ymin, ymax, 0.0, tmax, tOut, 1.0,
-          BoundaryType::eWall, BoundaryType::eWall, BoundaryType::eWall,
-          BoundaryType::eWall, ProblemDimension::e2D,
-          []([[maybe_unused]] double x, [[maybe_unused]] double y) {
-            return 0.0;
-          },
-          []([[maybe_unused]] double x, [[maybe_unused]] double y) {
-            return 0.0;
-          },
-          [rhoLeft, rhoTop, rhoBottom, xLeft, yTop](double x, double y) {
-            if (x <= xLeft) {
-              return rhoLeft;
-            }
-            if (y <= yTop) {
-              return rhoBottom;
-            }
-            return rhoTop;
-          },
-          [pLeft, pTop, pBottom, xLeft, yTop](double x, double y) {
-            if (x <= xLeft) {
-              return pLeft;
-            }
-            if (y <= yTop) {
-              return pBottom;
-            }
-            return pTop;
-          },
-
-          [gammaLeft, gammaTop, gammaBottom, xLeft, yTop](double x, double y) {
-            static std::shared_ptr<EOSIdeal> eosLeft =
-                std::make_shared<EOSIdeal>(gammaLeft);
-            static std::shared_ptr<EOSIdeal> eosBottom =
-                std::make_shared<EOSIdeal>(gammaBottom);
-            static std::shared_ptr<EOSIdeal> eosTop =
-                std::make_shared<EOSIdeal>(gammaTop);
-            if (x <= xLeft) {
-              return eosLeft;
-            }
-            if (y <= yTop) {
-              return eosBottom;
-            }
-            return eosTop;
-          }
-
-      ) {
-  assert(xLeft > xmin && xLeft < xmax);
-  assert(yTop > ymin && yTop < ymax);
-}
 
 // Riemann test problems
 std::shared_ptr<Problem> sodTest = std::make_shared<RiemannProblem1Dx>(

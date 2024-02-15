@@ -16,6 +16,29 @@ enum class ProblemDimension { e1D, e2D };
 
 class Problem {
  public:
+  static Problem createRiemannProblem1Dx(const std::string &name, double xmin,
+                                         double xmax, double tmax,
+                                         const std::deque<double> &tOut,
+                                         double uL, double rhoL, double pL,
+                                         double uR, double rhoR, double pR,
+                                         double spl, double gamma);
+  static Problem createCircularRiemannProblem(
+      const std::string &name, double xmin, double xmax, double ymin,
+      double ymax, double tmax, const std::deque<double> &tOut, double uIn,
+      double vIn, double rhoIn, double pIn, double uOut, double vOut,
+      double rhoOut, double pOut, double spl, double gamma);
+  static Problem createLaserVolumeTargetProblem(
+      const std::string &name, double xmin, double xmax, double ymin,
+      double tmax, const std::deque<double> &tOut, double rhoM, double pCold,
+      double pHeat, double RL, double dSkin);
+  static Problem createTriplePointProblem(
+      const std::string &name, double xmin, double xmax, double ymin,
+      double ymax, double tmax, const std::deque<double> &tOut, double vSplit,
+      double hSplit, double rhoLeft, double pLeft, double rhoTop, double pTop,
+      double rhoBottom, double pBottom, double gammaLeft, double gammaTop,
+      double gammaBottom);
+
+ public:
   Problem(
       const std::string &name_, double xmin_, double xmax_, double ymin_,
       double ymax_, double tmin_, double tmax_, const std::deque<double> &tOut_,
@@ -35,9 +58,6 @@ class Problem {
 
   virtual ~Problem() = default;
 
- public:
- protected:
- private:
  public:
   const std::string name;  // Problem name
 
@@ -66,51 +86,7 @@ class Problem {
       eosInitializer;  // Function that returns EOSes to use in the grid
 
  protected:
-  Logger logger;
-};
-
-/*  */
-class RiemannProblem1Dx : public Problem {
- public:
-  RiemannProblem1Dx(const std::string &name, double xmin, double xmax,
-                    double tmax, const std::deque<double> &tOut, double rhoL,
-                    double uL, double pL, double rhoR, double uR, double pR,
-                    double spl, double gamma);
-
- public:
- protected:
- private:
-};
-
-class CircularRiemannProblem : public Problem {
- public:
-  CircularRiemannProblem(const std::string &name, double xmin, double xmax,
-                         double ymin, double ymax, double tmax,
-                         const std::deque<double> &tOut, double rhoL, double uL,
-                         double vL, double pL, double rhoR, double uR,
-                         double vR, double pR, double spl, double gamma);
-
- public:
- private:
-};
-
-class LaserVolumeTargetProblem : public Problem {
- public:
-  LaserVolumeTargetProblem(const std::string &name, double xmin, double xmax,
-                           double ymin, double tmax,
-                           const std::deque<double> &tOut, double rhoM,
-                           double pCold, double pHeat, double RL, double dSkin);
-};
-
-class TriplePointShock : public Problem {
- public:
-  TriplePointShock(const std::string &name, double xmin, double xmax,
-                       double ymin, double ymax, double tmax,
-                       const std::deque<double> &tOut, double xLeft,
-                       double yTop, double rhoLeft, double pLeft,
-                       double rhoBottom, double pBottom, double rhoTop,
-                       double pTop, double gammaLeft, double gammaTop,
-                       double gammaBottom);
+  const Logger logger;
 };
 
 #endif
