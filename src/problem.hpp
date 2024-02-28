@@ -84,9 +84,6 @@ class Problem {
       pInitializer;  // Function that returns p initial values
   const std::function<std::shared_ptr<EOS>(double x, double y)>
       eosInitializer;  // Function that returns EOSes to use in the grid
-
- protected:
-  const Logger logger;
 };
 
 #endif
