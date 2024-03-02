@@ -16,6 +16,7 @@ enum class ProblemDimension { e1D, e2D };
 
 class Problem {
  public:
+  // Problem factory functions
   static Problem createRiemannProblem1Dx(const std::string &name, double xmin,
                                          double xmax, double tmax,
                                          const std::deque<double> &tOut,
@@ -56,7 +57,7 @@ class Problem {
   Problem &operator=(Problem const &rhs) = delete;
   Problem &operator=(Problem &&rhs) = delete;
 
-  virtual ~Problem() = default;
+  ~Problem() = default;
 
  public:
   const std::string name;  // Problem name
@@ -84,6 +85,14 @@ class Problem {
       pInitializer;  // Function that returns p initial values
   const std::function<std::shared_ptr<EOS>(double x, double y)>
       eosInitializer;  // Function that returns EOSes to use in the grid
+};
+
+class Problems {
+ public:
+  static Problem sodTest;
+  static Problem blastWave2D;
+  static Problem laserVolumeTarget;
+  static Problem triplePointShock;
 };
 
 #endif

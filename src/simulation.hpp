@@ -8,11 +8,11 @@
 
 class Simulation {
  public:
-  Simulation(std::shared_ptr<Method> method);
-  Simulation(Simulation const &rhs) = default;
+  Simulation(std::unique_ptr<Method> method);
+  Simulation(Simulation const &rhs) = delete;
   Simulation(Simulation &&rhs) = default;
 
-  Simulation &operator=(Simulation const &rhs) = default;
+  Simulation &operator=(Simulation const &rhs) = delete;
   Simulation &operator=(Simulation &&rhs) = default;
 
   ~Simulation() = default;
@@ -27,7 +27,7 @@ class Simulation {
   void logSimulationEnd(double simTime) const;
 
  private:
-  std::shared_ptr<Method> method;
+  std::unique_ptr<Method> method;
 
   Logger logger;
 };

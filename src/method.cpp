@@ -6,10 +6,10 @@
 
 #include "nodes.hpp"
 
-FEMALEMethod::FEMALEMethod(const std::string &name,
-                           std::shared_ptr<Problem> pr_, size_t xSize_,
-                           size_t ySize_, size_t order_)
-    : Method(name, pr_->name, pr_->tmin, pr_->tmax, pr_->tOut, pr_->tMul),
+FEMALEMethod::FEMALEMethod(const std::string &name, const Problem &problem_,
+                           size_t xSize_, size_t ySize_, size_t order_)
+    :  // Method(name, pr_->name, pr_->tmin, pr_->tmax, pr_->tOut, pr_->tMul),
+      Method(name, problem_),
       xSize(xSize_),
       ySize(ySize_),
       order(order_),
@@ -18,15 +18,15 @@ FEMALEMethod::FEMALEMethod(const std::string &name,
       forceQuadOrder(order * 2),
       Nk((order * xSize + 1) * (order * ySize + 1)),
       Nt((order * xSize) * (order * ySize)),
-      xmin(pr_->xmin),
-      xmax(pr_->xmax),
-      ymin(pr_->ymin),
-      ymax(pr_->ymax),
-      leftBoundaryType(pr_->leftBoundaryType),
-      topBoundaryType(pr_->topBoundaryType),
-      rightBoundaryType(pr_->rightBoundaryType),
-      bottomBoundaryType(pr_->bottomBoundaryType),
-      dimension(pr_->dimension),
+      // xmin(problem_->xmin),
+      // xmax(problem_->xmax),
+      // ymin(problem_->ymin),
+      // ymax(problem_->ymax),
+      // leftBoundaryType(problem_->leftBoundaryType),
+      // topBoundaryType(problem_->topBoundaryType),
+      // rightBoundaryType(problem_->rightBoundaryType),
+      // bottomBoundaryType(problem_->bottomBoundaryType),
+      // dimension(problem_->dimension),
       x(Nk),
       y(Nk),
       u(Nk),
@@ -47,10 +47,10 @@ FEMALEMethod::FEMALEMethod(const std::string &name,
       Fx(Nk, Nt),
       Fy(Nk, Nt) {
   assert(order > 0);
-  initInitializers(pr_);
+  initInitializers();
   initBasisValues();
-  initKinematicVectors(pr_);
-  initThermodynamicVector(pr_);
+  initKinematicVectors();
+  initThermodynamicVector();
   initKinematicMassMatrix();
   initThermodynamicInverseMassMatrix();
   initForceMatrices();
@@ -64,15 +64,16 @@ void FEMALEMethod::calc() {
 void FEMALEMethod::calcdt() const {}
 
 void FEMALEMethod::dumpData() const {
-  std::string filename = std::format("{}_{:.3f}.txt", problemName, t * tMul);
-  if (name != problemName) {
+  std::string filename =
+      std::format("{}_{:.3f}.txt", problem.name, t * problem.tMul);
+  if (name != problem.name) {
     filename = name + "/" + filename;
   }
   auto outputFunction = [this](std::ofstream ofs) {
     const size_t imax = xSize * order;
     const size_t jmax = ySize * order;
-    const double celldx = (xmax - xmin) / xSize;
-    const double celldy = (ymax - ymin) / ySize;
+    const double celldx = (problem.xmax - problem.xmin) / xSize;
+    const double celldy = (problem.ymax - problem.ymin) / ySize;
     ofs << imax << " " << jmax << std::endl;
     for (size_t i = 0; i < imax; i++) {
       for (size_t j = 0; j < jmax; j++) {
@@ -128,12 +129,13 @@ void FEMALEMethod::dumpData() const {
 
         double xlocal = (0.5 + i % order) / order;
         double ylocal = (0.5 + j % order) / order;
-        double rhoInitial = rhoInitializer(xmin + celldx * (celli + xlocal),
-                                           ymin + celldy * (cellj + ylocal));
+        double rhoInitial =
+            rhoInitializer(problem.xmin + celldx * (celli + xlocal),
+                           problem.ymin + celldy * (cellj + ylocal));
         double rhoij =
             rhoInitial * jacobianInitial.determinant() / jacobian.determinant();
-        auto eos = eosInitializer(xmin + celldx * (celli + xlocal),
-                                  ymin + celldy * (cellj + ylocal));
+        auto eos = eosInitializer(problem.xmin + celldx * (celli + xlocal),
+                                  problem.ymin + celldy * (cellj + ylocal));
         double pij = eos->getp(rhoij, eij);
 
         std::string line = std::format(
@@ -148,8 +150,8 @@ void FEMALEMethod::dumpData() const {
 
 void FEMALEMethod::dumpGrid() const {
   std::string filename =
-      std::format("{}_grid_{:.3f}.txt", problemName, t * tMul);
-  if (name != problemName) {
+      std::format("{}_grid_{:.3f}.txt", problem.name, t * problem.tMul);
+  if (name != problem.name) {
     filename = name + "/" + filename;
   }
   auto outputFunction = [this](std::ofstream ofs) {
@@ -172,15 +174,15 @@ void FEMALEMethod::dumpGrid() const {
 double FEMALEMethod::quadKinematicCellMass(size_t celli, size_t cellj,
                                            size_t basisi, size_t basisj) {
   double output = 0.0;
-  const double celldx = (xmax - xmin) / xSize;
-  const double celldy = (ymax - ymin) / ySize;
+  const double celldx = (problem.xmax - problem.xmin) / xSize;
+  const double celldy = (problem.ymax - problem.ymin) / ySize;
   const size_t indMin = getLegendreStartIndex(kinematicMassQuadOrder);
   for (size_t i = 0; i < kinematicMassQuadOrder; i++) {
     for (size_t j = 0; j < kinematicMassQuadOrder; j++) {
       double xlocal = legendreAbscissas[indMin + i];
       double ylocal = legendreAbscissas[indMin + j];
-      double xij = xmin + celldx * (celli + xlocal);
-      double yij = ymin + celldy * (cellj + ylocal);
+      double xij = problem.xmin + celldx * (celli + xlocal);
+      double yij = problem.ymin + celldy * (cellj + ylocal);
 
       double rho = rhoInitializer(xij, yij);
       double basisiValue = kinematicMass1DValues[(basisi % (order + 1)) *
@@ -230,14 +232,14 @@ double FEMALEMethod::quadThermoCellMass(size_t celli, size_t cellj,
                                         size_t basisi, size_t basisj) {
   double output = 0.0;
   const size_t indMin = getLegendreStartIndex(thermoMassQuadOrder);
-  const double celldx = (xmax - xmin) / xSize;
-  const double celldy = (ymax - ymin) / ySize;
+  const double celldx = (problem.xmax - problem.xmin) / xSize;
+  const double celldy = (problem.ymax - problem.ymin) / ySize;
   for (size_t i = 0; i < thermoMassQuadOrder; i++) {
     for (size_t j = 0; j < thermoMassQuadOrder; j++) {
       double xlocal = legendreAbscissas[indMin + i];
       double ylocal = legendreAbscissas[indMin + j];
-      double xij = xmin + celldx * (celli + xlocal);
-      double yij = ymin + celldy * (cellj + ylocal);
+      double xij = problem.xmin + celldx * (celli + xlocal);
+      double yij = problem.ymin + celldy * (cellj + ylocal);
 
       double rho = rhoInitializer(xij, yij);
       double basisiValue =
@@ -394,25 +396,27 @@ size_t FEMALEMethod::getThermodynamicIndexFromCell(const size_t celli,
   return celli * order * order * ySize + cellj * order * order + k;
 }
 
-void FEMALEMethod::initInitializers(std::shared_ptr<Problem> pr) {
-  rhoInitializer = [xmin = pr->xmin, xmax = pr->xmax, ymin = pr->ymin,
-                    ymax = pr->ymax, xSize = this->xSize, ySize = this->ySize,
-                    rhoInitializer = pr->rhoInitializer](double x, double y) {
-    double dx = (xmax - xmin) / xSize;
-    double dy = (ymax - ymin) / ySize;
-    double xij = xmin + (std::floor((x - xmin) / dx) + 0.5) * dx;
-    double yij = ymin + (std::floor((y - ymin) / dy) + 0.5) * dy;
-    return rhoInitializer(xij, yij);
-  };
-  eosInitializer = [xmin = pr->xmin, xmax = pr->xmax, ymin = pr->ymin,
-                    ymax = pr->ymax, xSize = this->xSize, ySize = this->ySize,
-                    eosInitializer = pr->eosInitializer](double x, double y) {
-    double dx = (xmax - xmin) / xSize;
-    double dy = (ymax - ymin) / ySize;
-    double xij = xmin + (std::floor((x - xmin) / dx) + 0.5) * dx;
-    double yij = ymin + (std::floor((y - ymin) / dy) + 0.5) * dy;
-    return eosInitializer(xij, yij);
-  };
+void FEMALEMethod::initInitializers() {
+  rhoInitializer =
+      [xmin = problem.xmin, xmax = problem.xmax, ymin = problem.ymin,
+       ymax = problem.ymax, xSize = this->xSize, ySize = this->ySize,
+       rhoInitializer = problem.rhoInitializer](double x, double y) {
+        double dx = (xmax - xmin) / xSize;
+        double dy = (ymax - ymin) / ySize;
+        double xij = xmin + (std::floor((x - xmin) / dx) + 0.5) * dx;
+        double yij = ymin + (std::floor((y - ymin) / dy) + 0.5) * dy;
+        return rhoInitializer(xij, yij);
+      };
+  eosInitializer =
+      [xmin = problem.xmin, xmax = problem.xmax, ymin = problem.ymin,
+       ymax = problem.ymax, xSize = this->xSize, ySize = this->ySize,
+       eosInitializer = problem.eosInitializer](double x, double y) {
+        double dx = (xmax - xmin) / xSize;
+        double dy = (ymax - ymin) / ySize;
+        double xij = xmin + (std::floor((x - xmin) / dx) + 0.5) * dx;
+        double yij = ymin + (std::floor((y - ymin) / dy) + 0.5) * dy;
+        return eosInitializer(xij, yij);
+      };
 }
 
 void FEMALEMethod::initBasisValues() {
@@ -501,12 +505,12 @@ void FEMALEMethod::initOutputBasisValues() {
   }
 }
 
-void FEMALEMethod::initKinematicVectors(std::shared_ptr<Problem> pr) {
+void FEMALEMethod::initKinematicVectors() {
   const size_t imax = xSize * order + 1;  // number of nodes in x direction
   const size_t jmax = ySize * order + 1;  // number of nodes in y direction
-  const double celldx = (pr->xmax - pr->xmin) / xSize;
-  const double celldy = (pr->ymax - pr->ymin) / ySize;
-  switch (dimension) {
+  const double celldx = (problem.xmax - problem.xmin) / xSize;
+  const double celldy = (problem.ymax - problem.ymin) / ySize;
+  switch (problem.dimension) {
     case ProblemDimension::e1D:
       l0 = celldx / order;
       break;
@@ -519,23 +523,23 @@ void FEMALEMethod::initKinematicVectors(std::shared_ptr<Problem> pr) {
       size_t indMin = getLobattoStartIndex(order);
       size_t lobattoxIndex = indMin + i % order;
       size_t lobattoyIndex = indMin + j % order;
-      double xij = pr->xmin + celldx * (static_cast<double>(i / order) +
+      double xij = problem.xmin + celldx * (static_cast<double>(i / order) +
                                         lobattoAbscissas[lobattoxIndex]);
-      double yij = pr->ymin + celldy * (static_cast<double>(j / order) +
+      double yij = problem.ymin + celldy * (static_cast<double>(j / order) +
                                         lobattoAbscissas[lobattoyIndex]);
       x(i * jmax + j) = xij;
       xInitial(i * jmax + j) = xij;
       y(i * jmax + j) = yij;
       yInitial(i * jmax + j) = yij;
-      u(i * jmax + j) = pr->uInitializer(xij, yij);
-      v(i * jmax + j) = pr->vInitializer(xij, yij);
+      u(i * jmax + j) = problem.uInitializer(xij, yij);
+      v(i * jmax + j) = problem.vInitializer(xij, yij);
     }
   }
 }
 
-void FEMALEMethod::initThermodynamicVector(std::shared_ptr<Problem> pr) {
-  double celldx = (pr->xmax - pr->xmin) / xSize;
-  double celldy = (pr->ymax - pr->ymin) / ySize;
+void FEMALEMethod::initThermodynamicVector() {
+  double celldx = (problem.xmax - problem.xmin) / xSize;
+  double celldy = (problem.ymax - problem.ymin) / ySize;
   for (size_t celli = 0; celli < xSize; celli++) {
     for (size_t cellj = 0; cellj < ySize; cellj++) {
       double localdx = 0.5;
@@ -548,11 +552,11 @@ void FEMALEMethod::initThermodynamicVector(std::shared_ptr<Problem> pr) {
         //   localdx = lobattoAbscissas[lobattoxIndex];
         //   localdy = lobattoAbscissas[lobattoyIndex];
         // }
-        double xij = pr->xmin + celldx * (celli + localdx);
-        double yij = pr->ymin + celldy * (cellj + localdy);
-        auto eos = pr->eosInitializer(xij, yij);
-        auto p = pr->pInitializer(xij, yij);
-        auto rho = pr->rhoInitializer(xij, yij);
+        double xij = problem.xmin + celldx * (celli + localdx);
+        double yij = problem.ymin + celldy * (cellj + localdy);
+        auto eos = eosInitializer(xij, yij);
+        auto p = problem.pInitializer(xij, yij);
+        auto rho = rhoInitializer(xij, yij);
         e(getThermodynamicIndexFromCell(celli, cellj, k)) = eos->gete(rho, p);
       }
     }
@@ -670,12 +674,12 @@ Eigen::Matrix<double, 2, 2> FEMALEMethod::calcStressTensor(
       Eigen::Matrix<double, 2, 2>::Zero();
 
   const size_t indMin = getLegendreStartIndex(forceQuadOrder);
-  const double celldx = (xmax - xmin) / xSize;
-  const double celldy = (ymax - ymin) / ySize;
+  const double celldx = (problem.xmax - problem.xmin) / xSize;
+  const double celldy = (problem.ymax - problem.ymin) / ySize;
   const double xlocal = legendreAbscissas[indMin + i];
   const double ylocal = legendreAbscissas[indMin + j];
-  const double xij = xmin + celldx * (celli + xlocal);
-  const double yij = ymin + celldy * (cellj + ylocal);
+  const double xij = problem.xmin + celldx * (celli + xlocal);
+  const double yij = problem.ymin + celldy * (cellj + ylocal);
 
   double eLocal = 0.0;
   for (size_t k = 0; k < order * order; k++) {
@@ -820,7 +824,7 @@ void FEMALEMethod::resolveBoundaryMass() {
 }
 void FEMALEMethod::resolveLeftBoundaryMass() {
   const size_t celli = 0;
-  switch (leftBoundaryType) {
+  switch (problem.leftBoundaryType) {
     case BoundaryType::eFree:
       break;
     case BoundaryType::eWall:
@@ -853,7 +857,7 @@ void FEMALEMethod::resolveLeftBoundaryMass() {
 }
 void FEMALEMethod::resolveTopBoundaryMass() {
   const size_t cellj = ySize - 1;
-  switch (topBoundaryType) {
+  switch (problem.topBoundaryType) {
     case BoundaryType::eFree:
       break;
     case BoundaryType::eWall:
@@ -888,7 +892,7 @@ void FEMALEMethod::resolveTopBoundaryMass() {
 }
 void FEMALEMethod::resolveRightBoundaryMass() {
   const size_t celli = xSize - 1;
-  switch (rightBoundaryType) {
+  switch (problem.rightBoundaryType) {
     case BoundaryType::eFree:
       break;
     case BoundaryType::eWall:
@@ -921,7 +925,7 @@ void FEMALEMethod::resolveRightBoundaryMass() {
 }
 void FEMALEMethod::resolveBottomBoundaryMass() {
   const size_t cellj = 0;
-  switch (bottomBoundaryType) {
+  switch (problem.bottomBoundaryType) {
     case BoundaryType::eFree:
       break;
     case BoundaryType::eWall:
@@ -960,7 +964,7 @@ void FEMALEMethod::resolveBoundaryForce() {
 }
 void FEMALEMethod::resolveLeftBoundaryForce() {
   const size_t celli = 0;
-  switch (leftBoundaryType) {
+  switch (problem.leftBoundaryType) {
     case BoundaryType::eFree:
       break;
     case BoundaryType::eWall:
@@ -990,7 +994,7 @@ void FEMALEMethod::resolveLeftBoundaryForce() {
 }
 void FEMALEMethod::resolveTopBoundaryForce() {
   const size_t cellj = ySize - 1;
-  switch (topBoundaryType) {
+  switch (problem.topBoundaryType) {
     case BoundaryType::eFree:
       break;
     case BoundaryType::eWall:
@@ -1022,7 +1026,7 @@ void FEMALEMethod::resolveTopBoundaryForce() {
 }
 void FEMALEMethod::resolveRightBoundaryForce() {
   const size_t celli = xSize - 1;
-  switch (rightBoundaryType) {
+  switch (problem.rightBoundaryType) {
     case BoundaryType::eFree:
       break;
     case BoundaryType::eWall:
@@ -1052,7 +1056,7 @@ void FEMALEMethod::resolveRightBoundaryForce() {
 }
 void FEMALEMethod::resolveBottomBoundaryForce() {
   const size_t cellj = 0;
-  switch (bottomBoundaryType) {
+  switch (problem.bottomBoundaryType) {
     case BoundaryType::eFree:
       break;
     case BoundaryType::eWall:

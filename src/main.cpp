@@ -9,13 +9,11 @@
 #include "problem.hpp"
 #include "simulation.hpp"
 
-#define PROBLEM triplePointShock
-
 int main([[maybe_unused]] int argc, [[maybe_unused]] char *argv[]) {
-  extern std::shared_ptr<Problem> PROBLEM;
-  std::shared_ptr<FEMALEMethod> mtd =
-      std::make_shared<FEMALEMethod>("2-48", PROBLEM, 112, 48, 2);
-  Simulation sim(mtd);
+  const Problem &problem = Problems::sodTest;
+  std::unique_ptr<FEMALEMethod> mtd =
+      std::make_unique<FEMALEMethod>("1-100", problem, 100, 1, 1);
+  Simulation sim(std::move(mtd));
   sim.run();
 
   return 0;

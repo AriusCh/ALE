@@ -8,7 +8,7 @@ Problem Problem::createRiemannProblem1Dx(const std::string &name, double xmin,
                                          double xmax, double tmax,
                                          const std::deque<double> &tOut,
                                          double uL, double rhoL, double pL,
-                                         double rhoR, double uR, double pR,
+                                         double uR, double rhoR, double pR,
                                          double spl, double gamma) {
   assert(spl >= xmin && spl <= xmax);
   double ymin = 0.0;
@@ -158,8 +158,8 @@ Problem Problem::createTriplePointProblem(
     double tmax, const std::deque<double> &tOut, double vSplit, double hSplit,
     double rhoLeft, double pLeft, double gammaLeft, double rhoTop, double pTop,
     double gammaTop, double rhoBottom, double pBottom, double gammaBottom) {
-  assert(xLeft > xmin && xLeft < xmax);
-  assert(yTop > ymin && yTop < ymax);
+  assert(vSplit > xmin && vSplit < xmax);
+  assert(hSplit > ymin && hSplit < ymax);
 
   double tmin = 0.0;
   double tMul = 1.0;
@@ -251,41 +251,42 @@ Problem::Problem(
       pInitializer(pInitializer_),
       eosInitializer(eosInitializer_) {}
 
+// std::shared_ptr<Problem> toro1x = std::make_shared<RiemannProblem1Dx>(
+//     "toro1x", 0.0, 1.0, 0.2, std::deque<double>{}, 1.0, 0.75, 1.0, 0.125,
+//     0.0, 0.1, 0.3, 1.4);
+// std::shared_ptr<Problem> toro2x = std::make_shared<RiemannProblem1Dx>(
+//     "toro2x", 0.0, 1.0, 0.15, std::deque<double>{}, 1.0, -2.0, 0.4, 1.0, 2.0,
+//     0.4, 0.5, 1.4);
+// std::shared_ptr<Problem> toro3x = std::make_shared<RiemannProblem1Dx>(
+//     "toro3x", 0.0, 1.0, 0.012, std::deque<double>{}, 1.0, 0.0, 1000.0, 1.0,
+//     0.0, 0.01, 0.5, 1.4);
+// std::shared_ptr<Problem> toro4x = std::make_shared<RiemannProblem1Dx>(
+//     "toro4x", 0.0, 1.0, 0.035, std::deque<double>{}, 5.99924, 19.5975,
+//     460.894, 5.99242, -6.19633, 46.0950, 0.4, 1.4);
+// std::shared_ptr<Problem> toro5x = std::make_shared<RiemannProblem1Dx>(
+//     "toro5x", 0.0, 1.0, 0.012, std::deque<double>{}, 1.0, -19.59745, 1000.0,
+//     1.0, -19.59745, 0.01, 0.8, 1.4);
+
 // Riemann test problems
-std::shared_ptr<Problem> sodTest = std::make_shared<RiemannProblem1Dx>(
-    "sod-test", 0.0, 1.0, 0.2, std::deque<double>{}, 1.0, 0.0, 1.0, 0.125, 0.0,
+Problem Problems::sodTest = Problem::createRiemannProblem1Dx(
+    "sod-test", 0.0, 1.0, 0.2, std::deque<double>{}, 0.0, 1.0, 1.0, 0.0, 0.125,
     0.1, 0.5, 5.0 / 3.0);
-std::shared_ptr<Problem> blastWave2D = std::make_shared<CircularRiemannProblem>(
-    "blastWave", 0.0, 1.0, 0.0, 1.0, 0.25, std::deque<double>{}, 1.0, 0.0, 0.0,
-    1.0, 0.125, 0.0, 0.0, 0.1, 0.4, 1.4);
-std::shared_ptr<Problem> toro1x = std::make_shared<RiemannProblem1Dx>(
-    "toro1x", 0.0, 1.0, 0.2, std::deque<double>{}, 1.0, 0.75, 1.0, 0.125, 0.0,
-    0.1, 0.3, 1.4);
-std::shared_ptr<Problem> toro2x = std::make_shared<RiemannProblem1Dx>(
-    "toro2x", 0.0, 1.0, 0.15, std::deque<double>{}, 1.0, -2.0, 0.4, 1.0, 2.0,
-    0.4, 0.5, 1.4);
-std::shared_ptr<Problem> toro3x = std::make_shared<RiemannProblem1Dx>(
-    "toro3x", 0.0, 1.0, 0.012, std::deque<double>{}, 1.0, 0.0, 1000.0, 1.0, 0.0,
-    0.01, 0.5, 1.4);
-std::shared_ptr<Problem> toro4x = std::make_shared<RiemannProblem1Dx>(
-    "toro4x", 0.0, 1.0, 0.035, std::deque<double>{}, 5.99924, 19.5975, 460.894,
-    5.99242, -6.19633, 46.0950, 0.4, 1.4);
-std::shared_ptr<Problem> toro5x = std::make_shared<RiemannProblem1Dx>(
-    "toro5x", 0.0, 1.0, 0.012, std::deque<double>{}, 1.0, -19.59745, 1000.0,
-    1.0, -19.59745, 0.01, 0.8, 1.4);
+
+Problem Problems::blastWave2D = Problem::createCircularRiemannProblem(
+    "blastWave", 0.0, 1.0, 0.0, 1.0, 0.25, std::deque<double>{}, 0.0, 0.0, 1.0,
+    1.0, 0.0, 0.0, 0.125, 0.1, 0.4, 1.4);
 
 // LaserVolumeDefaultProblem
-std::shared_ptr<Problem> laserVolumeTargetProblem =
-    std::make_shared<LaserVolumeTargetProblem>(
-        "laser-al", 0.0, 1280.e-9, -800.e-9, 115.2e-12,
-        std::deque<double>{0.1 * 9.6e-12, 1.0 * 9.6e-12, 2.0 * 9.6e-12,
-                           3.0 * 9.6e-12, 4.0 * 9.6e-12, 5.0 * 9.6e-12,
-                           6.0 * 9.6e-12, 7.0 * 9.6e-12, 8.0 * 9.6e-12,
-                           9.0 * 9.6e-12, 10.0 * 9.6e-12, 11.0 * 9.6e-12},
-        2413., 0, 35.6e9, 200e-9, 80e-9);
+Problem Problems::laserVolumeTarget = Problem::createLaserVolumeTargetProblem(
+    "laser-al", 0.0, 1280e-9, -800e-9, 115.2e-12,
+    std::deque<double>{0.1 * 9.6e-12, 1.0 * 9.6e-12, 2.0 * 9.6e-12,
+                       3.0 * 9.6e-12, 4.0 * 9.6e-12, 5.0 * 9.6e-12,
+                       6.0 * 9.6e-12, 7.0 * 9.6e-12, 8.0 * 9.6e-12,
+                       9.0 * 9.6e-12, 10.0 * 9.6e-12, 11.0 * 9.6e-12},
+    2413.0, 0.0, 35.6e9, 200e-9, 80e-9);
 
 // Triple point shock wave
-std::shared_ptr<Problem> triplePointShock = std::make_shared<TriplePointShock>(
+Problem Problems::triplePointShock = Problem::createTriplePointProblem(
     "triple-point", 0.0, 7.0, 0.0, 3.0, 5.0,
     std::deque<double>{0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.3, 3.5, 4.0, 4.5}, 1.0,
-    1.5, 1.0, 1.0, 1.0, 0.1, 0.125, 0.1, 1.5, 1.4, 1.5);
+    1.5, 1.0, 1.0, 1.5, 0.125, 0.1, 1.5, 1.0, 0.1, 1.4);
