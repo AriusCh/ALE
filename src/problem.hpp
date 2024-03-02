@@ -39,6 +39,9 @@ class Problem {
       double rhoBottom, double pBottom, double gammaLeft, double gammaTop,
       double gammaBottom);
 
+  static Problem createTask1(const std::string &name, double Lx, double Ly,
+                             double Ls, double L0, double La, double Lb);
+
  public:
   Problem(
       const std::string &name_, double xmin_, double xmax_, double ymin_,

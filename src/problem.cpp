@@ -220,6 +220,73 @@ Problem Problem::createTriplePointProblem(
                  rhoInitializer, pInitializer, eosInitializer);
 }
 
+Problem Problem::createTask1(const std::string &name, double Lx, double Ly,
+                             double Ls, double L0, double La, double Lb) {
+  assert(Ls < Lx);
+  assert(Ls + L0 < Lx);
+  assert(La < Ly);
+  assert(La + Lb < Ly);
+
+  constexpr double P0 = 1e5;
+  constexpr double P1 = 3.0 * P0;
+
+  constexpr double rho0 = 1.0;
+  constexpr double rho1 = 3.0 * rho0;
+  constexpr double rho2 = 1.2 * rho0;
+
+  double xmin = 0.0;
+  double xmax = Lx;
+  double ymin = 0.0;
+  double ymax = Ly;
+  double tmin = 0.0;
+  double tmax = 0.015;
+  std::deque<double> tOut{};
+  double tMul = 1.0;
+  BoundaryType leftBoundaryType = BoundaryType::eNoSlipWall;
+  BoundaryType topBoundaryType = BoundaryType::eNoSlipWall;
+  BoundaryType rightBoundaryType = BoundaryType::eNoSlipWall;
+  BoundaryType bottomBoundaryType = BoundaryType::eNoSlipWall;
+  ProblemDimension dimension = ProblemDimension::e2D;
+
+  auto uInitializer = []([[maybe_unused]] double x, [[maybe_unused]] double y) {
+    return 0.0;
+  };
+  auto vInitializer = []([[maybe_unused]] double x, [[maybe_unused]] double y) {
+    return 0.0;
+  };
+  auto rhoInitializer = [Ls, L0, La, Lb](double x, double y) {
+    if (x < Ls) {
+      return rho1;
+    }
+    if (x < Ls + L0) {
+      return rho0;
+    }
+    if (y < La) {
+      return rho2;
+    }
+    if (y < La + Lb) {
+      return rho0;
+    }
+    return rho2;
+  };
+  auto pInitializer = [Ls](double x, [[maybe_unused]] double y) {
+    if (x < Ls) {
+      return P1;
+    }
+    return P0;
+  };
+  auto eosInitializer = []([[maybe_unused]] double x,
+                           [[maybe_unused]] double y) {
+    static std::shared_ptr<EOSIdeal> eos = std::make_shared<EOSIdeal>(1.4);
+    return eos;
+  };
+
+  return Problem(name, xmin, xmax, ymin, ymax, tmin, tmax, tOut, tMul,
+                 leftBoundaryType, topBoundaryType, rightBoundaryType,
+                 bottomBoundaryType, dimension, uInitializer, vInitializer,
+                 rhoInitializer, pInitializer, eosInitializer);
+}
+
 Problem::Problem(
     const std::string &name_, double xmin_, double xmax_, double ymin_,
     double ymax_, double tmin_, double tmax_, const std::deque<double> &tOut_,
