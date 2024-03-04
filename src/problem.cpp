@@ -2,6 +2,7 @@
 
 #include <cassert>
 #include <format>
+#include <numbers>
 #include <fstream>
 
 Problem Problem::createRiemannProblem1Dx(const std::string &name, double xmin,
@@ -240,12 +241,12 @@ Problem Problem::createTask1(const std::string &name, double Lx, double Ly,
   double ymax = Ly;
   double tmin = 0.0;
   double tmax = 0.015;
-  std::deque<double> tOut{};
-  double tMul = 1.0;
-  BoundaryType leftBoundaryType = BoundaryType::eNoSlipWall;
-  BoundaryType topBoundaryType = BoundaryType::eNoSlipWall;
-  BoundaryType rightBoundaryType = BoundaryType::eNoSlipWall;
-  BoundaryType bottomBoundaryType = BoundaryType::eNoSlipWall;
+  std::deque<double> tOut{0.5e-3, 1e-3, 1.5e-3, 2e-3, 2.5e-3, 3e-3, 3.5e-3, 4e-3, 4.5e-3, 5e-3, 5.5e-3, 6e-3, 6.5e-3, 7e-3, 7.5e-3, 8e-3, 8.5e-3, 9e-3, 9.5e-3, 10e-3, 10.5e-3, 11e-3, 11.5e-3, 12e-3, 12.5e-3, 13e-3, 13.5e-3, 14e-3, 14.5e-3};
+  double tMul = 1e3;
+  BoundaryType leftBoundaryType = BoundaryType::eWall;
+  BoundaryType topBoundaryType = BoundaryType::eWall;
+  BoundaryType rightBoundaryType = BoundaryType::eWall;
+  BoundaryType bottomBoundaryType = BoundaryType::eWall;
   ProblemDimension dimension = ProblemDimension::e2D;
 
   auto uInitializer = []([[maybe_unused]] double x, [[maybe_unused]] double y) {
@@ -278,6 +279,79 @@ Problem Problem::createTask1(const std::string &name, double Lx, double Ly,
   auto eosInitializer = []([[maybe_unused]] double x,
                            [[maybe_unused]] double y) {
     static std::shared_ptr<EOSIdeal> eos = std::make_shared<EOSIdeal>(1.4);
+    return eos;
+  };
+
+  return Problem(name, xmin, xmax, ymin, ymax, tmin, tmax, tOut, tMul,
+                 leftBoundaryType, topBoundaryType, rightBoundaryType,
+                 bottomBoundaryType, dimension, uInitializer, vInitializer,
+                 rhoInitializer, pInitializer, eosInitializer);
+}
+
+Problem Problem::createTask5(const std::string &name, double Lx, double Ly, double Ls, double alpha) {
+  assert(Ls < Lx);
+  
+  constexpr double P0 = 1e5;
+  constexpr double P1 = 3 * P0;
+
+  constexpr double rho0 = 1.0;
+  constexpr double rho1 = 3 * rho0;
+  constexpr double rho3 = 1e5 * rho0;
+
+  double xmin = 0.0;
+  double xmax = Lx;
+  double ymin = 0.0;
+  double ymax = Ly;
+  double tmin = 0.0;
+  double tmax = 0.025;
+  std::deque<double> tOut{0.5e-3, 1e-3, 1.5e-3, 2e-3, 2.5e-3, 3e-3, 3.5e-3, 4e-3, 4.5e-3, 5e-3,
+    5.5e-3, 6e-3, 6.5e-3, 7e-3, 7.5e-3, 8e-3, 8.5e-3, 9e-3, 9.5e-3, 10e-3,
+    10.5e-3, 11e-3, 11.5e-3, 12e-3, 12.5e-3, 13e-3, 13.5e-3, 14e-3, 14.5e-3, 15e-3,
+    15.5e-3, 16e-3, 16.5e-3, 17e-3, 17.5e-3, 18e-3, 18.5e-3, 19e-3, 19.5e-3, 20e-3,
+    20.5e-3, 21e-3, 21.5e-3, 22e-3, 22.5e-3, 23e-3, 23.5e-3, 24e-3, 24.5e-3
+  };
+  double tMul = 1e3;
+  BoundaryType leftBoundaryType = BoundaryType::eWall;
+  BoundaryType topBoundaryType = BoundaryType::eWall;
+  BoundaryType rightBoundaryType = BoundaryType::eWall;
+  BoundaryType bottomBoundaryType = BoundaryType::eWall;
+  ProblemDimension dimension = ProblemDimension::e2D;
+
+  auto uInitializer = []([[maybe_unused]] double x, [[maybe_unused]] double y) {
+    return 0.0;
+  };
+  auto vInitializer = []([[maybe_unused]] double x, [[maybe_unused]] double y) {
+    return 0.0;
+  };
+  auto rhoInitializer = [Lx, Ly, Ls, alpha] (double x, double y) {
+    if (x < Ls) {
+      return rho1;
+    }
+    double alphaRad = alpha * std::numbers::pi / 180.0;
+    double La = 0.5 * Ly * std::tan(0.5 * (std::numbers::pi - alphaRad));
+    if (La == 0.0) {
+      return rho0;
+    }
+    double k1 = 0.5 * Ly / La;
+    double b1 = k1 * (La - Lx);
+    if (y < k1 * x + b1) {
+      return rho3;
+    }
+    double k2 = -k1;
+    double b2 = Ly + k2 * (La - Lx);
+    if (y > k2 * x + b2) {
+      return rho3;
+    }
+    return rho0;
+  };
+  auto pInitializer = [Ls] (double x, [[maybe_unused]] double y) {
+    if (x < Ls) {
+      return P1;
+    }
+    return P0;
+  };
+  auto eosInitializer = []([[maybe_unused]] double x, [[maybe_unused]] double y) {
+    static std::shared_ptr<EOS> eos = std::make_shared<EOSIdeal>(1.4);
     return eos;
   };
 
@@ -357,3 +431,6 @@ Problem Problems::triplePointShock = Problem::createTriplePointProblem(
     "triple-point", 0.0, 7.0, 0.0, 3.0, 5.0,
     std::deque<double>{0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.3, 3.5, 4.0, 4.5}, 1.0,
     1.5, 1.0, 1.0, 1.5, 0.125, 0.1, 1.5, 1.0, 0.1, 1.4);
+
+Problem Problems::task1v2 = Problem::createTask1("task1v2", 10.0, 1.0, 4.0, 1.0, 0.125, 0.75);
+Problem Problems::task5v11 = Problem::createTask5("task5v11", 14.0, 5.0, 0.4 * 14.0, 60);

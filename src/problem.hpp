@@ -41,6 +41,7 @@ class Problem {
 
   static Problem createTask1(const std::string &name, double Lx, double Ly,
                              double Ls, double L0, double La, double Lb);
+  static Problem createTask5(const std::string &name, double Lx, double Ly, double Ls, double alpha);
 
  public:
   Problem(
@@ -96,6 +97,9 @@ class Problems {
   static Problem blastWave2D;
   static Problem laserVolumeTarget;
   static Problem triplePointShock;
+
+  static Problem task1v2;
+  static Problem task5v11;
 };
 
 #endif
