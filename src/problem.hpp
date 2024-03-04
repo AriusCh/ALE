@@ -40,8 +40,9 @@ class Problem {
       double gammaBottom);
 
   static Problem createTask1(const std::string &name, double Lx, double Ly,
-                             double Ls, double L0, double La, double Lb);
-  static Problem createTask5(const std::string &name, double Lx, double Ly, double Ls, double alpha);
+                             double Ls, double L0, double La);
+  static Problem createTask5(const std::string &name, double Lx, double Ly,
+                             double Ls, double alpha);
 
  public:
   Problem(

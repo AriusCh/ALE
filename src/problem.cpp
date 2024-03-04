@@ -2,8 +2,8 @@
 
 #include <cassert>
 #include <format>
-#include <numbers>
 #include <fstream>
+#include <numbers>
 
 Problem Problem::createRiemannProblem1Dx(const std::string &name, double xmin,
                                          double xmax, double tmax,
@@ -200,12 +200,10 @@ Problem Problem::createTriplePointProblem(
 
   auto eosInitializer = [gammaLeft, gammaTop, gammaBottom, vSplit, hSplit](
                             double x, double y) {
-    static std::shared_ptr<EOSIdeal> eosLeft =
-        std::make_shared<EOSIdeal>(gammaLeft);
-    static std::shared_ptr<EOSIdeal> eosBottom =
+    static std::shared_ptr<EOS> eosLeft = std::make_shared<EOSIdeal>(gammaLeft);
+    static std::shared_ptr<EOS> eosBottom =
         std::make_shared<EOSIdeal>(gammaBottom);
-    static std::shared_ptr<EOSIdeal> eosTop =
-        std::make_shared<EOSIdeal>(gammaTop);
+    static std::shared_ptr<EOS> eosTop = std::make_shared<EOSIdeal>(gammaTop);
     if (x <= vSplit) {
       return eosLeft;
     }
@@ -222,7 +220,7 @@ Problem Problem::createTriplePointProblem(
 }
 
 Problem Problem::createTask1(const std::string &name, double Lx, double Ly,
-                             double Ls, double L0, double La, double Lb) {
+                             double Ls, double L0, double La) {
   assert(Ls < Lx);
   assert(Ls + L0 < Lx);
   assert(La < Ly);
@@ -241,7 +239,11 @@ Problem Problem::createTask1(const std::string &name, double Lx, double Ly,
   double ymax = Ly;
   double tmin = 0.0;
   double tmax = 0.015;
-  std::deque<double> tOut{0.5e-3, 1e-3, 1.5e-3, 2e-3, 2.5e-3, 3e-3, 3.5e-3, 4e-3, 4.5e-3, 5e-3, 5.5e-3, 6e-3, 6.5e-3, 7e-3, 7.5e-3, 8e-3, 8.5e-3, 9e-3, 9.5e-3, 10e-3, 10.5e-3, 11e-3, 11.5e-3, 12e-3, 12.5e-3, 13e-3, 13.5e-3, 14e-3, 14.5e-3};
+  std::deque<double> tOut{0.5e-3,  1e-3,  1.5e-3,  2e-3,  2.5e-3,  3e-3,
+                          3.5e-3,  4e-3,  4.5e-3,  5e-3,  5.5e-3,  6e-3,
+                          6.5e-3,  7e-3,  7.5e-3,  8e-3,  8.5e-3,  9e-3,
+                          9.5e-3,  10e-3, 10.5e-3, 11e-3, 11.5e-3, 12e-3,
+                          12.5e-3, 13e-3, 13.5e-3, 14e-3, 14.5e-3};
   double tMul = 1e3;
   BoundaryType leftBoundaryType = BoundaryType::eWall;
   BoundaryType topBoundaryType = BoundaryType::eWall;
@@ -255,7 +257,7 @@ Problem Problem::createTask1(const std::string &name, double Lx, double Ly,
   auto vInitializer = []([[maybe_unused]] double x, [[maybe_unused]] double y) {
     return 0.0;
   };
-  auto rhoInitializer = [Ls, L0, La, Lb](double x, double y) {
+  auto rhoInitializer = [Ly, Ls, L0, La](double x, double y) {
     if (x < Ls) {
       return rho1;
     }
@@ -265,10 +267,10 @@ Problem Problem::createTask1(const std::string &name, double Lx, double Ly,
     if (y < La) {
       return rho2;
     }
-    if (y < La + Lb) {
-      return rho0;
+    if (y > Ly - La) {
+      return rho2;
     }
-    return rho2;
+    return rho0;
   };
   auto pInitializer = [Ls](double x, [[maybe_unused]] double y) {
     if (x < Ls) {
@@ -288,9 +290,10 @@ Problem Problem::createTask1(const std::string &name, double Lx, double Ly,
                  rhoInitializer, pInitializer, eosInitializer);
 }
 
-Problem Problem::createTask5(const std::string &name, double Lx, double Ly, double Ls, double alpha) {
+Problem Problem::createTask5(const std::string &name, double Lx, double Ly,
+                             double Ls, double alpha) {
   assert(Ls < Lx);
-  
+
   constexpr double P0 = 1e5;
   constexpr double P1 = 3 * P0;
 
@@ -304,12 +307,14 @@ Problem Problem::createTask5(const std::string &name, double Lx, double Ly, doub
   double ymax = Ly;
   double tmin = 0.0;
   double tmax = 0.025;
-  std::deque<double> tOut{0.5e-3, 1e-3, 1.5e-3, 2e-3, 2.5e-3, 3e-3, 3.5e-3, 4e-3, 4.5e-3, 5e-3,
-    5.5e-3, 6e-3, 6.5e-3, 7e-3, 7.5e-3, 8e-3, 8.5e-3, 9e-3, 9.5e-3, 10e-3,
-    10.5e-3, 11e-3, 11.5e-3, 12e-3, 12.5e-3, 13e-3, 13.5e-3, 14e-3, 14.5e-3, 15e-3,
-    15.5e-3, 16e-3, 16.5e-3, 17e-3, 17.5e-3, 18e-3, 18.5e-3, 19e-3, 19.5e-3, 20e-3,
-    20.5e-3, 21e-3, 21.5e-3, 22e-3, 22.5e-3, 23e-3, 23.5e-3, 24e-3, 24.5e-3
-  };
+  std::deque<double> tOut{
+      0.5e-3,  1e-3,    1.5e-3,  2e-3,    2.5e-3,  3e-3,    3.5e-3,
+      4e-3,    4.5e-3,  5e-3,    5.5e-3,  6e-3,    6.5e-3,  7e-3,
+      7.5e-3,  8e-3,    8.5e-3,  9e-3,    9.5e-3,  10e-3,   10.5e-3,
+      11e-3,   11.5e-3, 12e-3,   12.5e-3, 13e-3,   13.5e-3, 14e-3,
+      14.5e-3, 15e-3,   15.5e-3, 16e-3,   16.5e-3, 17e-3,   17.5e-3,
+      18e-3,   18.5e-3, 19e-3,   19.5e-3, 20e-3,   20.5e-3, 21e-3,
+      21.5e-3, 22e-3,   22.5e-3, 23e-3,   23.5e-3, 24e-3,   24.5e-3};
   double tMul = 1e3;
   BoundaryType leftBoundaryType = BoundaryType::eWall;
   BoundaryType topBoundaryType = BoundaryType::eWall;
@@ -323,7 +328,7 @@ Problem Problem::createTask5(const std::string &name, double Lx, double Ly, doub
   auto vInitializer = []([[maybe_unused]] double x, [[maybe_unused]] double y) {
     return 0.0;
   };
-  auto rhoInitializer = [Lx, Ly, Ls, alpha] (double x, double y) {
+  auto rhoInitializer = [Lx, Ly, Ls, alpha](double x, double y) {
     if (x < Ls) {
       return rho1;
     }
@@ -344,13 +349,14 @@ Problem Problem::createTask5(const std::string &name, double Lx, double Ly, doub
     }
     return rho0;
   };
-  auto pInitializer = [Ls] (double x, [[maybe_unused]] double y) {
+  auto pInitializer = [Ls](double x, [[maybe_unused]] double y) {
     if (x < Ls) {
       return P1;
     }
     return P0;
   };
-  auto eosInitializer = []([[maybe_unused]] double x, [[maybe_unused]] double y) {
+  auto eosInitializer = []([[maybe_unused]] double x,
+                           [[maybe_unused]] double y) {
     static std::shared_ptr<EOS> eos = std::make_shared<EOSIdeal>(1.4);
     return eos;
   };
@@ -432,5 +438,7 @@ Problem Problems::triplePointShock = Problem::createTriplePointProblem(
     std::deque<double>{0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.3, 3.5, 4.0, 4.5}, 1.0,
     1.5, 1.0, 1.0, 1.5, 0.125, 0.1, 1.5, 1.0, 0.1, 1.4);
 
-Problem Problems::task1v2 = Problem::createTask1("task1v2", 10.0, 1.0, 4.0, 1.0, 0.125, 0.75);
-Problem Problems::task5v11 = Problem::createTask5("task5v11", 14.0, 5.0, 0.4 * 14.0, 60);
+Problem Problems::task1v2 =
+    Problem::createTask1("task1v2", 10.0, 1.0, 4.0, 1.0, 0.125);
+Problem Problems::task5v11 =
+    Problem::createTask5("task5v11", 14.0, 5.0, 0.4 * 14.0, 60);

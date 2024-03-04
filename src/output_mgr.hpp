@@ -7,7 +7,6 @@
 // #include <future>
 #include <string>
 
-#include "grid.hpp"
 #include "logger.hpp"
 
 class Writer {

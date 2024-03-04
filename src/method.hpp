@@ -4,8 +4,6 @@
 #include <Eigen/Dense>
 #include <Eigen/IterativeLinearSolvers>
 #include <Eigen/SparseCore>
-#include <barrier>
-#include <future>
 
 #include "output_mgr.hpp"
 #include "problem.hpp"
@@ -42,21 +40,13 @@ class Method {
   double dt;
   double t;
 
-  // std::string problemName;
-  //
-  //
-  // const double tmin;
-  // const double tmax;
-  // std::deque<double> tOut;
-  // const double tMul;
-
   Writer writer;
 };
 
 class FEMALEMethod : public Method {
  public:
-  FEMALEMethod(const std::string &name, const Problem &problem,
-               size_t xSize_, size_t ySize_, size_t order_);
+  FEMALEMethod(const std::string &name, const Problem &problem, size_t xSize_,
+               size_t ySize_, size_t order_);
   FEMALEMethod(FEMALEMethod const &rhs) = delete;
   FEMALEMethod(FEMALEMethod &&rhs) = delete;
 
@@ -154,10 +144,6 @@ class FEMALEMethod : public Method {
   const size_t forceQuadOrder;
   const size_t Nk;  // Number kinematic space points
   const size_t Nt;  // Number of thermodynamic space points
-  // const double xmin;
-  // const double xmax;
-  // const double ymin;
-  // const double ymax;
   const double q1 = 0.5;
   const double q2 = 2.0;
   const double alpha = 0.5;
@@ -165,11 +151,6 @@ class FEMALEMethod : public Method {
   const double beta1 = 0.85;
   const double beta2 = 1.02;
   const double gamma = 0.8;
-  // const BoundaryType leftBoundaryType;    // Left boundary type
-  // const BoundaryType topBoundaryType;     // Top boundary type
-  // const BoundaryType rightBoundaryType;   // Right boundary type
-  // const BoundaryType bottomBoundaryType;  // Bottom boundary type
-  // const ProblemDimension dimension;
   double l0;
 
   Eigen::Matrix<double, Eigen::Dynamic, 1> x;
@@ -202,11 +183,6 @@ class FEMALEMethod : public Method {
                            Eigen::Lower | Eigen::Upper>
       kinematicSolvery;
 
-  // Time control vars
-  // double hmin;
-  // double rhoTau;
-  // double soundSpeed;
-  // double maxViscosityCoeff = 0.0;
   double tau;
 
   std::vector<double> kinematicMass1DValues;

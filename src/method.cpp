@@ -8,8 +8,7 @@
 
 FEMALEMethod::FEMALEMethod(const std::string &name, const Problem &problem_,
                            size_t xSize_, size_t ySize_, size_t order_)
-    :  // Method(name, pr_->name, pr_->tmin, pr_->tmax, pr_->tOut, pr_->tMul),
-      Method(name, problem_),
+    : Method(name, problem_),
       xSize(xSize_),
       ySize(ySize_),
       order(order_),
@@ -18,15 +17,6 @@ FEMALEMethod::FEMALEMethod(const std::string &name, const Problem &problem_,
       forceQuadOrder(order * 2),
       Nk((order * xSize + 1) * (order * ySize + 1)),
       Nt((order * xSize) * (order * ySize)),
-      // xmin(problem_->xmin),
-      // xmax(problem_->xmax),
-      // ymin(problem_->ymin),
-      // ymax(problem_->ymax),
-      // leftBoundaryType(problem_->leftBoundaryType),
-      // topBoundaryType(problem_->topBoundaryType),
-      // rightBoundaryType(problem_->rightBoundaryType),
-      // bottomBoundaryType(problem_->bottomBoundaryType),
-      // dimension(problem_->dimension),
       x(Nk),
       y(Nk),
       u(Nk),
@@ -57,10 +47,7 @@ FEMALEMethod::FEMALEMethod(const std::string &name, const Problem &problem_,
   initSolvers();
 }
 
-void FEMALEMethod::calc() {
-  RK2step();
-  // t += dt;
-}
+void FEMALEMethod::calc() { RK2step(); }
 void FEMALEMethod::calcdt() const {}
 
 void FEMALEMethod::dumpData() const {
@@ -312,7 +299,7 @@ FEMALEMethod::quadForceCell(size_t celli, size_t cellj,
         jacobian(1, 0) += yk * basis2Ddx;
         jacobian(1, 1) += yk * basis2Ddy;
       }
-      Eigen::JacobiSVD<decltype(jacobian)> svd(jacobian);
+      Eigen::JacobiSVD<Eigen::Matrix<double, 2, 2>> svd(jacobian);
       double hmin = svd.singularValues().minCoeff() / order;
       double soundSpeed = 0.0;
       double rhoLocal = 0.0;
@@ -524,9 +511,9 @@ void FEMALEMethod::initKinematicVectors() {
       size_t lobattoxIndex = indMin + i % order;
       size_t lobattoyIndex = indMin + j % order;
       double xij = problem.xmin + celldx * (static_cast<double>(i / order) +
-                                        lobattoAbscissas[lobattoxIndex]);
+                                            lobattoAbscissas[lobattoxIndex]);
       double yij = problem.ymin + celldy * (static_cast<double>(j / order) +
-                                        lobattoAbscissas[lobattoyIndex]);
+                                            lobattoAbscissas[lobattoyIndex]);
       x(i * jmax + j) = xij;
       xInitial(i * jmax + j) = xij;
       y(i * jmax + j) = yij;
@@ -545,13 +532,6 @@ void FEMALEMethod::initThermodynamicVector() {
       double localdx = 0.5;
       double localdy = 0.5;
       for (size_t k = 0; k < order * order; k++) {
-        // if (order != 1) {
-        //   size_t indMin = getLobattoStartIndex(order - 1);
-        //   size_t lobattoxIndex = indMin + k % order;
-        //   size_t lobattoyIndex = indMin + k / order;
-        //   localdx = lobattoAbscissas[lobattoxIndex];
-        //   localdy = lobattoAbscissas[lobattoyIndex];
-        // }
         double xij = problem.xmin + celldx * (celli + localdx);
         double yij = problem.ymin + celldy * (cellj + localdy);
         auto eos = eosInitializer(xij, yij);
