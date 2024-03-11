@@ -221,10 +221,9 @@ Problem Problem::createTriplePointProblem(
 
 Problem Problem::createTask1(const std::string &name, double Lx, double Ly,
                              double Ls, double L0, double La) {
-  assert(Ls < Lx);
-  assert(Ls + L0 < Lx);
-  assert(La < Ly);
-  assert(La + Lb < Ly);
+  assert(Ls <= Lx);
+  assert(Ls + L0 <= Lx);
+  assert(2.0 * La <= Ly);
 
   constexpr double P0 = 1e5;
   constexpr double P1 = 3.0 * P0;

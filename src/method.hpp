@@ -169,6 +169,7 @@ class FEMALEMethod : public Method {
   Eigen::Matrix<double, Eigen::Dynamic, 1> e05;
   Eigen::Matrix<double, Eigen::Dynamic, 1> Fu;
   Eigen::Matrix<double, Eigen::Dynamic, 1> Fv;
+  Eigen::Matrix<double, Eigen::Dynamic, 1> Fe;
 
   Eigen::SparseMatrix<double> Mkx;
   Eigen::SparseMatrix<double> Mky;

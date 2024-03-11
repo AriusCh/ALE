@@ -1,5 +1,7 @@
 #include "nodes.hpp"
 
+#include <cassert>
+
 double lobattoBasis1D(double x, size_t order, size_t k) {
   assert(order <= lobattoOrderMax);
   assert(x >= 0.0 && x <= 1.0);
@@ -15,10 +17,12 @@ double lobattoBasis1D(double x, size_t order, size_t k) {
 
   for (size_t i = indMin; i < indJ; i++) {
     numerator *= x - lobattoAbscissas[i];
+    assert(lobattoAbscissas[indJ] != lobattoAbscissas[i]);
     denominator *= lobattoAbscissas[indJ] - lobattoAbscissas[i];
   }
   for (size_t i = indJ + 1; i < indMax; i++) {
     numerator *= x - lobattoAbscissas[i];
+    assert(lobattoAbscissas[indJ] != lobattoAbscissas[i]);
     denominator *= lobattoAbscissas[indJ] - lobattoAbscissas[i];
   }
   return numerator / denominator;
@@ -36,16 +40,20 @@ double lobattoBasis1Ddx(double x, size_t order, size_t k) {
     double denominator = 1.0;
     for (size_t j = indMin; j < i; j++) {
       numerator *= x - lobattoAbscissas[j];
+      assert(lobattoAbscissas[indJ] != lobattoAbscissas[j]);
       denominator *= lobattoAbscissas[indJ] - lobattoAbscissas[j];
     }
     for (size_t j = i + 1; j < indJ; j++) {
       numerator *= x - lobattoAbscissas[j];
+      assert(lobattoAbscissas[indJ] != lobattoAbscissas[j]);
       denominator *= lobattoAbscissas[indJ] - lobattoAbscissas[j];
     }
     for (size_t j = indJ + 1; j < indMax; j++) {
       numerator *= x - lobattoAbscissas[j];
+      assert(lobattoAbscissas[indJ] != lobattoAbscissas[j]);
       denominator *= lobattoAbscissas[indJ] - lobattoAbscissas[j];
     }
+    assert(lobattoAbscissas[indJ] != lobattoAbscissas[i]);
     output += numerator /
               (denominator * (lobattoAbscissas[indJ] - lobattoAbscissas[i]));
   }
@@ -54,16 +62,20 @@ double lobattoBasis1Ddx(double x, size_t order, size_t k) {
     double denominator = 1.0;
     for (size_t j = indMin; j < indJ; j++) {
       numerator *= x - lobattoAbscissas[j];
+      assert(lobattoAbscissas[indJ] != lobattoAbscissas[j]);
       denominator *= lobattoAbscissas[indJ] - lobattoAbscissas[j];
     }
     for (size_t j = indJ + 1; j < i; j++) {
       numerator *= x - lobattoAbscissas[j];
+      assert(lobattoAbscissas[indJ] != lobattoAbscissas[j]);
       denominator *= lobattoAbscissas[indJ] - lobattoAbscissas[j];
     }
     for (size_t j = i + 1; j < indMax; j++) {
       numerator *= x - lobattoAbscissas[j];
+      assert(lobattoAbscissas[indJ] != lobattoAbscissas[j]);
       denominator *= lobattoAbscissas[indJ] - lobattoAbscissas[j];
     }
+    assert(lobattoAbscissas[indJ] != lobattoAbscissas[i]);
     output += numerator /
               (denominator * (lobattoAbscissas[indJ] - lobattoAbscissas[i]));
   }
@@ -82,10 +94,12 @@ double legendreBasis1D(double x, size_t order, size_t k) {
 
   for (size_t i = indMin; i < indJ; i++) {
     numerator *= x - legendreAbscissas[i];
+    assert(legendreAbscissas[indJ] != legendreAbscissas[i]);
     denominator *= legendreAbscissas[indJ] - legendreAbscissas[i];
   }
   for (size_t i = indJ + 1; i < indMax; i++) {
     numerator *= x - legendreAbscissas[i];
+    assert(legendreAbscissas[indJ] != legendreAbscissas[i]);
     denominator *= legendreAbscissas[indJ] - legendreAbscissas[i];
   }
 

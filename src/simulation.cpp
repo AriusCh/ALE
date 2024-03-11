@@ -65,7 +65,7 @@ void Simulation::logSuccessfulIteration(int iterationNumber, double t,
                                         double remTime) const {
   std::string message = std::format(
       "PROBLEM: {} ITERATION: {:6} t: {:6.6e} dt: {:6.6e} STEP TIME: {:.6f} "
-      "REMAINING TIME: {:.6f}",
+      "REMAINING TIME: {:.0f}",
       method->problem.name, iterationNumber, t, dt, calcTime, remTime);
 
   logger.log(message, LogLevel::eGeneral);

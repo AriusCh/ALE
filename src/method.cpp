@@ -31,6 +31,7 @@ FEMALEMethod::FEMALEMethod(const std::string &name, const Problem &problem_,
       e05(Nt),
       Fu(Nk),
       Fv(Nk),
+      Fe(Nt),
       Mkx(Nk, Nk),
       Mky(Nk, Nk),
       Mt_inv(Nt, Nt),
@@ -1086,7 +1087,9 @@ void FEMALEMethod::RK2step() {
     v05 *= -0.5 * dt;
     v05 += v;
 
-    e05 = Mt_inv * (Fx.transpose() * u05 + Fy.transpose() * v05);
+    Fe = Fx.transpose() * u05;
+    Fe += Fy.transpose() * v05;
+    e05 = Mt_inv * Fe;
     e05 *= 0.5 * dt;
     e05 += e;
 
@@ -1122,7 +1125,9 @@ void FEMALEMethod::RK2step() {
   v05 += v;
   v05 *= 0.5;
 
-  e05 = Mt_inv * (Fx.transpose() * u05 + Fy.transpose() * v05);
+  Fe = Fx.transpose() * u05;
+  Fe += Fy.transpose() * v05;
+  e05 = Mt_inv * Fe;
   e05 *= dt;
   e05 += e;
 
@@ -1134,7 +1139,7 @@ void FEMALEMethod::RK2step() {
     dt = beta2 * dt;
   }
 
-  x = x05;
-  y = y05;
-  e = e05;
+  x.swap(x05);
+  y.swap(y05);
+  e.swap(e05);
 }
