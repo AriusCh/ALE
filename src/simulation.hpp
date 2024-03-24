@@ -2,9 +2,9 @@
 #define ALE_SOLVER_SRC_SIMULATION_HPP_
 
 #include <memory>
+#include <queue>
 
 #include "method.hpp"
-#include "output_mgr.hpp"
 
 class Simulation {
  public:
@@ -28,6 +28,11 @@ class Simulation {
 
  private:
   std::unique_ptr<Method> method;
+
+  // Step time relaxation
+  static constexpr size_t stepTimesMaxSize = 10;
+  std::queue<double> stepTimes;
+  double stepTimesSum = 0.0;
 
   Logger logger;
 };

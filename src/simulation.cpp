@@ -1,6 +1,5 @@
 #include "simulation.hpp"
 
-#include <cmath>
 #include <format>
 
 Simulation::Simulation(std::unique_ptr<Method> method)
@@ -35,7 +34,14 @@ void Simulation::run() {
                           std::chrono::high_resolution_clock::now() - start)
                           .count();
 
-    double remTime = (method->problem.tmax - method->t) / method->dt * calcTime;
+    stepTimes.push(calcTime);
+    stepTimesSum += calcTime;
+    if (stepTimes.size() > stepTimesMaxSize) {
+      stepTimesSum -= stepTimes.front();
+      stepTimes.pop();
+    }
+    double remTime = (method->problem.tmax - method->t) / method->dt *
+                     stepTimesSum / stepTimes.size();
 
     logSuccessfulIteration(iterationNum, method->t, method->dt, calcTime,
                            remTime);
