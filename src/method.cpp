@@ -441,10 +441,16 @@ void FEMALEMethod::initThermodynamicMassBasisValues() {
     }
   }
 
+  // for (size_t k = 0; k < order; k++) {
+  //   for (size_t i = indMin; i < indMin + thermoMassQuadOrder; i++) {
+  //     double xi = legendreAbscissas[i];
+  //     thermoMass1DThermoValues.push_back(lobattoBasis1D(xi, order - 1, k));
+  //   }
+  // }
   for (size_t k = 0; k < order; k++) {
     for (size_t i = indMin; i < indMin + thermoMassQuadOrder; i++) {
       double xi = legendreAbscissas[i];
-      thermoMass1DThermoValues.push_back(lobattoBasis1D(xi, order - 1, k));
+      thermoMass1DThermoValues.push_back(legendreBasis1D(xi, order - 1, k));
     }
   }
 }
@@ -463,10 +469,16 @@ void FEMALEMethod::initForceBasisValues() {
     }
   }
 
+  // for (size_t k = 0; k < order; k++) {
+  //   for (size_t i = indMin; i < indMin + forceQuadOrder; i++) {
+  //     double xi = legendreAbscissas[i];
+  //     force1DThermoValues.push_back(lobattoBasis1D(xi, order - 1, k));
+  //   }
+  // }
   for (size_t k = 0; k < order; k++) {
     for (size_t i = indMin; i < indMin + forceQuadOrder; i++) {
       double xi = legendreAbscissas[i];
-      force1DThermoValues.push_back(lobattoBasis1D(xi, order - 1, k));
+      force1DThermoValues.push_back(legendreBasis1D(xi, order - 1, k));
     }
   }
 }
@@ -485,10 +497,16 @@ void FEMALEMethod::initOutputBasisValues() {
     }
   }
 
+  // for (size_t k = 0; k < order; k++) {
+  //   for (size_t i = 0; i < order; i++) {
+  //     double xi = 0.5 * dx + dx * i;
+  //     output1DThermoValues.push_back(lobattoBasis1D(xi, order - 1, k));
+  //   }
+  // }
   for (size_t k = 0; k < order; k++) {
     for (size_t i = 0; i < order; i++) {
       double xi = 0.5 * dx + dx * i;
-      output1DThermoValues.push_back(lobattoBasis1D(xi, order - 1, k));
+      output1DThermoValues.push_back(legendreBasis1D(xi, order - 1, k));
     }
   }
 }
