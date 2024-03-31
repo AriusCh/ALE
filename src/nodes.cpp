@@ -1,6 +1,6 @@
 #include "nodes.hpp"
 
-#include <cassert>
+#include <cmath>
 
 double lobattoBasis1D(double x, size_t order, size_t k) {
   assert(order <= lobattoOrderMax);
@@ -27,6 +27,7 @@ double lobattoBasis1D(double x, size_t order, size_t k) {
   }
   return numerator / denominator;
 }
+
 double lobattoBasis1Ddx(double x, size_t order, size_t k) {
   assert(order <= lobattoOrderMax && order > 0);
   assert(x >= 0.0 && x <= 1.0);
@@ -81,6 +82,7 @@ double lobattoBasis1Ddx(double x, size_t order, size_t k) {
   }
   return output;
 }
+
 double legendreBasis1D(double x, size_t order, size_t k) {
   assert(order + 1 <= legendreOrderMax);
   assert(x >= 0.0 && x <= 1.0);
@@ -104,4 +106,43 @@ double legendreBasis1D(double x, size_t order, size_t k) {
   }
 
   return numerator / denominator;
+}
+
+double bernsteinBasis1D(double x, size_t order, size_t k) {
+  assert(k <= order);
+  if (order == 0) {
+    return 1.0;
+  }
+  double kmin = std::min(k, order - k);
+  double numerator = 1.0;
+  double denominator = 1.0;
+  for (size_t i = 1; i <= kmin; i++) {
+    numerator *= order - kmin + i;
+    denominator *= i;
+  }
+  double coeff = numerator / denominator;
+  return coeff * std::pow(x, k) * std::pow(x, order - k);
+}
+double bernsteinBasis1Ddx(double x, size_t order, size_t k) {
+  assert(k <= order);
+  if (order == 0) {
+    return 0.0;
+  }
+  double kmin = std::min(k, order - k);
+  double numerator = 1.0;
+  double denominator = 1.0;
+  for (size_t i = 1; i <= kmin; i++) {
+    numerator *= order - kmin + i;
+    denominator *= i;
+  }
+  double coeff = numerator / denominator;
+  double leftPart = 0.0;
+  double rightPart = 0.0;
+  if (k != 0) {
+    leftPart = k * std::pow(x, k - 1) * std::pow(x, order - k);
+  }
+  if (k != order) {
+    rightPart = -(order - k) * std::pow(x, k) * std::pow(x, order - k - 1);
+  }
+  return coeff * (leftPart + rightPart);
 }

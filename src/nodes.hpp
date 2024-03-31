@@ -1,9 +1,9 @@
-#ifndef ALE_SOLVER_SRC_GAUSS_HPP_
-#define ALE_SOLVER_SRC_GAUSS_HPP_
+#ifndef ALE_SOLVER_SRC_NODES_HPP_
+#define ALE_SOLVER_SRC_NODES_HPP_
 
 #include <array>
 #include <cassert>
-#include <functional>
+#include <cstddef>
 
 constexpr size_t legendreOrderMax = 16;
 constexpr size_t lobattoOrderMax = 8;
@@ -351,5 +351,7 @@ inline size_t getLobattoStartIndex(size_t order) {
 double lobattoBasis1D(double x, size_t order, size_t k);
 double lobattoBasis1Ddx(double x, size_t order, size_t k);
 double legendreBasis1D(double x, size_t order, size_t k);
+double bernsteinBasis1D(double x, size_t order, size_t k);
+double bernsteinBasis1Ddx(double x, size_t order, size_t k);
 
 #endif
