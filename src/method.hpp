@@ -308,7 +308,8 @@ class FEMALEMethod : public Method {
 
   Eigen::SparseMatrix<double> vectorLaplacianX;
   Eigen::SparseMatrix<double> vectorLaplacianY;
-  Eigen::SparseMatrix<double> vectorMass;
+  Eigen::SparseMatrix<double> vectorMassX;
+  Eigen::SparseMatrix<double> vectorMassY;
   Eigen::SparseMatrix<double> Mv;
   Eigen::SparseMatrix<double> M;
   Eigen::SparseMatrix<double> Kv;

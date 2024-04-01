@@ -55,7 +55,8 @@ FEMALEMethod::FEMALEMethod(const std::string &name, const Problem &problem_,
       Fy(Nk, Nt),
       vectorLaplacianX(Nk, Nk),
       vectorLaplacianY(Nk, Nk),
-      vectorMass(Nk, Nk),
+      vectorMassX(Nk, Nk),
+      vectorMassY(Nk, Nk),
       Mv(Nk, Nk),
       M(Na, Na),
       Kv(Nk, Nk),
@@ -1373,7 +1374,9 @@ void FEMALEMethod::initVectorMatrices() {
       Eigen::VectorXi::Constant(Nk, (2 * order + 1) * (2 * order + 1)));
   vectorLaplacianY.reserve(
       Eigen::VectorXi::Constant(Nk, (2 * order + 1) * (2 * order + 1)));
-  vectorMass.reserve(
+  vectorMassX.reserve(
+      Eigen::VectorXi::Constant(Nk, (2 * order + 1) * (2 * order + 1)));
+  vectorMassY.reserve(
       Eigen::VectorXi::Constant(Nk, (2 * order + 1) * (2 * order + 1)));
 
   const Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> cellVectorMass =
@@ -1387,7 +1390,8 @@ void FEMALEMethod::initVectorMatrices() {
         for (size_t j = 0; j < (order + 1) * (order + 1); j++) {
           size_t indI = getKinematicIndexFromCell(celli, cellj, i);
           size_t indJ = getKinematicIndexFromCell(celli, cellj, j);
-          vectorMass.coeffRef(indI, indJ) += cellVectorMass(i, j);
+          vectorMassX.coeffRef(indI, indJ) += cellVectorMass(i, j);
+          vectorMassY.coeffRef(indI, indJ) += cellVectorMass(i, j);
           vectorLaplacianX.coeffRef(indI, indJ) += cellVectorLaplacian(i, j);
           vectorLaplacianY.coeffRef(indI, indJ) += cellVectorLaplacian(i, j);
         }
@@ -1395,7 +1399,8 @@ void FEMALEMethod::initVectorMatrices() {
     }
   }
   resolveBoundaryVector();
-  vectorMass.makeCompressed();
+  vectorMassX.makeCompressed();
+  vectorMassY.makeCompressed();
   vectorLaplacianX.makeCompressed();
   vectorLaplacianY.makeCompressed();
 }
@@ -1783,26 +1788,24 @@ void FEMALEMethod::calcAuxMat() {
 void FEMALEMethod::optimizeMesh() {
   xOptimal = x;
   yOptimal = y;
-  Eigen::Matrix<double, Eigen::Dynamic, 1> xTmp(Nk);
-  Eigen::Matrix<double, Eigen::Dynamic, 1> yTmp(Nk);
 
   // DECOMPOSITION A = D + L + U
   // TEST with 0.5 * eps to account for multiple dimensions
-  Eigen::SparseMatrix<double> Ax = eps * vectorLaplacianX + vectorMass;
-  Eigen::SparseMatrix<double> Ay = eps * vectorLaplacianY + vectorMass;
+  Eigen::SparseMatrix<double> Ax = eps * vectorLaplacianX + vectorMassX;
+  Eigen::SparseMatrix<double> Ay = eps * vectorLaplacianY + vectorMassY;
   Ax.makeCompressed();
   Ay.makeCompressed();
 
-  Eigen::SparseMatrix<double> Dx_inv(Nk, Nk);
-  Eigen::SparseMatrix<double> Dy_inv(Nk, Nk);
-  Dx_inv.reserve(Eigen::VectorXi::Constant(Nk, 1));
-  Dy_inv.reserve(Eigen::VectorXi::Constant(Nk, 1));
-  for (size_t i = 0; i < Nk; i++) {
-    double Axii = Ax.coeff(i, i);
-    double Ayii = Ay.coeff(i, i);
-    Dx_inv.insert(i, i) = 1.0 / Axii;
-    Dy_inv.insert(i, i) = 1.0 / Ayii;
-  }
+  // Eigen::SparseMatrix<double> Dx_inv(Nk, Nk);
+  // Eigen::SparseMatrix<double> Dy_inv(Nk, Nk);
+  // Dx_inv.reserve(Eigen::VectorXi::Constant(Nk, 1));
+  // Dy_inv.reserve(Eigen::VectorXi::Constant(Nk, 1));
+  // for (size_t i = 0; i < Nk; i++) {
+  //   const double Axii = Ax.coeff(i, i);
+  //   const double Ayii = Ay.coeff(i, i);
+  //   Dx_inv.insert(i, i) = 1.0 / Axii;
+  //   Dy_inv.insert(i, i) = 1.0 / Ayii;
+  // }
 
   Eigen::SparseMatrix<double> LUx = Ax;
   Eigen::SparseMatrix<double> LUy = Ay;
@@ -1811,15 +1814,27 @@ void FEMALEMethod::optimizeMesh() {
     LUy.coeffRef(i, i) = 0.0;
   }
 
-  Eigen::Matrix<double, Eigen::Dynamic, 1> bx = vectorMass * x;
-  Eigen::Matrix<double, Eigen::Dynamic, 1> by = vectorMass * y;
+  Eigen::Matrix<double, Eigen::Dynamic, 1> bx = vectorMassX * x;
+  Eigen::Matrix<double, Eigen::Dynamic, 1> by = vectorMassY * y;
 
   constexpr size_t nSteps = 100;
   for (size_t iter = 0; iter < nSteps; iter++) {
-    xTmp.swap(xOptimal);
-    yTmp.swap(yOptimal);
-    xOptimal = Dx_inv * (bx - LUx * xTmp);
-    yOptimal = Dy_inv * (by - LUy * yTmp);
+    // xTmp.swap(xOptimal);
+    // yTmp.swap(yOptimal);
+    // xOptimal = Dx_inv * (bx - LUx * xTmp);
+    // yOptimal = Dy_inv * (by - LUy * yTmp);
+    Eigen::VectorXd rhsx = bx - LUx * xOptimal;
+    Eigen::VectorXd rhsy = by - LUy * yOptimal;
+    for (size_t i = 0; i < Nk; i++) {
+      const double Axii = Ax.coeff(i, i);
+      const double Ayii = Ay.coeff(i, i);
+      if (Axii != 0.0) {
+        xOptimal(i) = rhsx(i) / Axii;
+      }
+      if (Ayii != 0.0) {
+        yOptimal(i) = rhsy(i) / Ayii;
+      }
+    }
   }
 
   uMesh = xOptimal - x;
@@ -2114,6 +2129,7 @@ void FEMALEMethod::calcRemapTau() {
     if (Kii == 0.0) {
       continue;
     }
+    assert(Mii != 0.0);
     // assert(Mii != 0.0);
     // assert(Kii != 0.0);
     const double dtTmp = remapCFL * std::abs(Mii / Kii);
@@ -2411,7 +2427,13 @@ void FEMALEMethod::resolveLeftBoundaryVector() {
           for (size_t j = 0; j < (order + 1) * (order + 1); j++) {
             const size_t indJ = getKinematicIndexFromCell(celli, cellj, j);
             vectorLaplacianX.coeffRef(indI, indJ) = 0.0;
+            vectorLaplacianX.coeffRef(indJ, indI) = 0.0;
             vectorLaplacianY.coeffRef(indI, indJ) = 0.0;
+            vectorLaplacianY.coeffRef(indJ, indI) = 0.0;
+            vectorMassX.coeffRef(indI, indJ) = 0.0;
+            vectorMassX.coeffRef(indJ, indI) = 0.0;
+            vectorMassY.coeffRef(indI, indJ) = 0.0;
+            vectorMassY.coeffRef(indJ, indI) = 0.0;
           }
         }
       }
@@ -2423,6 +2445,9 @@ void FEMALEMethod::resolveLeftBoundaryVector() {
           for (size_t j = 0; j < (order + 1) * (order + 1); j++) {
             const size_t indJ = getKinematicIndexFromCell(celli, cellj, j);
             vectorLaplacianX.coeffRef(indI, indJ) = 0.0;
+            vectorLaplacianX.coeffRef(indJ, indI) = 0.0;
+            vectorMassX.coeffRef(indI, indJ) = 0.0;
+            vectorMassX.coeffRef(indJ, indI) = 0.0;
           }
         }
       }
@@ -2442,7 +2467,13 @@ void FEMALEMethod::resolveTopBoundaryVector() {
           for (size_t j = 0; j < (order + 1) * (order + 1); j++) {
             size_t indJ = getKinematicIndexFromCell(celli, cellj, j);
             vectorLaplacianX.coeffRef(indI, indJ) = 0.0;
+            vectorLaplacianX.coeffRef(indJ, indI) = 0.0;
             vectorLaplacianY.coeffRef(indI, indJ) = 0.0;
+            vectorLaplacianY.coeffRef(indJ, indI) = 0.0;
+            vectorMassX.coeffRef(indI, indJ) = 0.0;
+            vectorMassX.coeffRef(indJ, indI) = 0.0;
+            vectorMassY.coeffRef(indI, indJ) = 0.0;
+            vectorMassY.coeffRef(indJ, indI) = 0.0;
           }
         }
       }
@@ -2455,6 +2486,9 @@ void FEMALEMethod::resolveTopBoundaryVector() {
           for (size_t j = 0; j < (order + 1) * (order + 1); j++) {
             size_t indJ = getKinematicIndexFromCell(celli, cellj, j);
             vectorLaplacianY.coeffRef(indI, indJ) = 0.0;
+            vectorLaplacianY.coeffRef(indJ, indI) = 0.0;
+            vectorMassY.coeffRef(indI, indJ) = 0.0;
+            vectorMassY.coeffRef(indJ, indI) = 0.0;
           }
         }
       }
@@ -2473,7 +2507,13 @@ void FEMALEMethod::resolveRightBoundaryVector() {
           for (size_t j = 0; j < (order + 1) * (order + 1); j++) {
             size_t indJ = getKinematicIndexFromCell(celli, cellj, j);
             vectorLaplacianX.coeffRef(indI, indJ) = 0.0;
+            vectorLaplacianX.coeffRef(indJ, indI) = 0.0;
             vectorLaplacianY.coeffRef(indI, indJ) = 0.0;
+            vectorLaplacianY.coeffRef(indJ, indI) = 0.0;
+            vectorMassX.coeffRef(indI, indJ) = 0.0;
+            vectorMassX.coeffRef(indJ, indI) = 0.0;
+            vectorMassY.coeffRef(indI, indJ) = 0.0;
+            vectorMassY.coeffRef(indJ, indI) = 0.0;
           }
         }
       }
@@ -2485,6 +2525,9 @@ void FEMALEMethod::resolveRightBoundaryVector() {
           for (size_t j = 0; j < (order + 1) * (order + 1); j++) {
             size_t indJ = getKinematicIndexFromCell(celli, cellj, j);
             vectorLaplacianX.coeffRef(indI, indJ) = 0.0;
+            vectorLaplacianX.coeffRef(indJ, indI) = 0.0;
+            vectorMassX.coeffRef(indI, indJ) = 0.0;
+            vectorMassX.coeffRef(indJ, indI) = 0.0;
           }
         }
       }
@@ -2503,7 +2546,13 @@ void FEMALEMethod::resolveBottomBoundaryVector() {
           for (size_t j = 0; j < (order + 1) * (order + 1); j++) {
             size_t indJ = getKinematicIndexFromCell(celli, cellj, j);
             vectorLaplacianX.coeffRef(indI, indJ) = 0.0;
+            vectorLaplacianX.coeffRef(indJ, indI) = 0.0;
             vectorLaplacianY.coeffRef(indI, indJ) = 0.0;
+            vectorLaplacianY.coeffRef(indJ, indI) = 0.0;
+            vectorMassX.coeffRef(indI, indJ) = 0.0;
+            vectorMassX.coeffRef(indJ, indI) = 0.0;
+            vectorMassY.coeffRef(indI, indJ) = 0.0;
+            vectorMassY.coeffRef(indJ, indI) = 0.0;
           }
         }
       }
@@ -2515,6 +2564,9 @@ void FEMALEMethod::resolveBottomBoundaryVector() {
           for (size_t j = 0; j < (order + 1) * (order + 1); j++) {
             size_t indJ = getKinematicIndexFromCell(celli, cellj, j);
             vectorLaplacianY.coeffRef(indI, indJ) = 0.0;
+            vectorLaplacianY.coeffRef(indJ, indI) = 0.0;
+            vectorMassY.coeffRef(indI, indJ) = 0.0;
+            vectorMassY.coeffRef(indJ, indI) = 0.0;
           }
         }
       }
