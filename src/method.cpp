@@ -214,6 +214,7 @@ Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic>
 FEMALEMethod::quadKinematicCellMass(size_t celli, size_t cellj) {
   Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> output(
       (order + 1) * (order + 1), (order + 1) * (order + 1));
+  output.setZero();
 
   const size_t indMin = getLegendreStartIndex(quadOrder);
   for (size_t quad = 0; quad < quadOrder * quadOrder; quad++) {
@@ -240,9 +241,9 @@ FEMALEMethod::quadKinematicCellMass(size_t celli, size_t cellj) {
             kinematicBasis1DQuadValues[(basisj / (order + 1)) * quadOrder +
                                        quadj];
 
-        output(basisi, basisj) = legendreWeights[indMin + quadi] *
-                                 legendreWeights[indMin + quadj] * rhoLocal *
-                                 basisi2D * basisj2D * jacDet;
+        output(basisi, basisj) += legendreWeights[indMin + quadi] *
+                                  legendreWeights[indMin + quadj] * rhoLocal *
+                                  basisi2D * basisj2D * jacDet;
       }
     }
   }
@@ -253,6 +254,7 @@ Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic>
 FEMALEMethod::quadThermoCellMass(size_t celli, size_t cellj) {
   Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> output(order * order,
                                                                order * order);
+  output.setZero();
 
   const size_t indMin = getLegendreStartIndex(quadOrder);
   for (size_t quad = 0; quad < quadOrder * quadOrder; quad++) {
@@ -286,11 +288,11 @@ FEMALEMethod::quadThermoCellMass(size_t celli, size_t cellj) {
 
 Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic>
 FEMALEMethod::quadCellVectorMass() {
-  Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> output{
-      Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic>::Zero(
-          (order + 1) * (order + 1), (order + 1) * (order + 1))};
-  const size_t indMin = getLegendreStartIndex(quadOrder);
+  Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> output(
+      (order + 1) * (order + 1), (order + 1) * (order + 1));
+  output.setZero();
 
+  const size_t indMin = getLegendreStartIndex(quadOrder);
   for (size_t i = 0; i < quadOrder; i++) {
     for (size_t j = 0; j < quadOrder; j++) {
       for (size_t basisi = 0; basisi < (order + 1) * (order + 1); basisi++) {
@@ -319,11 +321,11 @@ FEMALEMethod::quadCellVectorMass() {
 
 Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic>
 FEMALEMethod::quadCellVectorLaplacian() {
-  Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> output{
-      Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic>::Zero(
-          (order + 1) * (order + 1), (order + 1) * (order + 1))};
-  const size_t indMin = getLegendreStartIndex(quadOrder);
+  Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> output(
+      (order + 1) * (order + 1), (order + 1) * (order + 1));
+  output.setZero();
 
+  const size_t indMin = getLegendreStartIndex(quadOrder);
   for (size_t i = 0; i < quadOrder; i++) {
     for (size_t j = 0; j < quadOrder; j++) {
       for (size_t basisi = 0; basisi < (order + 1) * (order + 1); basisi++) {
@@ -369,6 +371,7 @@ Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> FEMALEMethod::quadCellMv(
     const Eigen::Matrix<double, Eigen::Dynamic, 1> &y) {
   Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> output(
       (order + 1) * (order + 1), (order + 1) * (order + 1));
+  output.setZero();
 
   const size_t indMin = getLegendreStartIndex(quadOrder);
   for (size_t quad = 0; quad < quadOrder * quadOrder; quad++) {
@@ -418,6 +421,7 @@ Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> FEMALEMethod::quadCellM(
     const Eigen::Matrix<double, Eigen::Dynamic, 1> &y) {
   Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> output(
       (order + 1) * (order + 1), (order + 1) * (order + 1));
+  output.setZero();
 
   const size_t indMin = getLegendreStartIndex(quadOrder);
   for (size_t quadi = 0; quadi < quadOrder; quadi++) {
@@ -455,6 +459,7 @@ Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> FEMALEMethod::quadCellKv(
     const Eigen::Matrix<double, Eigen::Dynamic, 1> &y) {
   Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> output(
       (order + 1) * (order + 1), (order + 1) * (order + 1));
+  output.setZero();
 
   const size_t indMin = getLegendreStartIndex(quadOrder);
   for (size_t quadi = 0; quadi < quadOrder; quadi++) {
@@ -526,54 +531,56 @@ Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> FEMALEMethod::quadCellK(
     const Eigen::Matrix<double, Eigen::Dynamic, 1> &y) {
   Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> output(
       (order + 1) * (order + 1), (order + 1) * (order + 1));
+  output.setZero();
 
   const size_t indMin = getLegendreStartIndex(quadOrder);
-  for (size_t quadi = 0; quadi < quadOrder; quadi++) {
-    for (size_t quadj = 0; quadj < quadOrder; quadj++) {
-      Eigen::Matrix<double, 2, 2> jacobian =
-          getCellJacobian(celli, cellj, quadi, quadj, x, y);
-      const double jacDet = std::abs(jacobian.determinant());
+  for (size_t quad = 0; quad < quadOrder * quadOrder; quad++) {
+    const size_t quadi = quad % quadOrder;
+    const size_t quadj = quad / quadOrder;
 
-      double uMeshLocal = 0.0;
-      double vMeshLocal = 0.0;
-      for (size_t k = 0; k < (order + 1) * (order + 1); k++) {
-        size_t indK = getKinematicIndexFromCell(celli, cellj, k);
-        const double uk = uMesh(indK);
-        const double vk = vMesh(indK);
+    Eigen::Matrix<double, 2, 2> jacobian =
+        getCellJacobian(celli, cellj, quadi, quadj, x, y);
+    const double jacDet = std::abs(jacobian.determinant());
 
-        const double basisk2D =
-            kinematicBasis1DQuadValues[(k % (order + 1)) * quadOrder + quadi] *
-            kinematicBasis1DQuadValues[(k / (order + 1)) * quadOrder + quadj];
+    double uMeshLocal = 0.0;
+    double vMeshLocal = 0.0;
+    for (size_t k = 0; k < (order + 1) * (order + 1); k++) {
+      size_t indK = getKinematicIndexFromCell(celli, cellj, k);
+      const double uk = uMesh(indK);
+      const double vk = vMesh(indK);
 
-        uMeshLocal += uk * basisk2D;
-        vMeshLocal += vk * basisk2D;
-      }
+      const double basisk2D =
+          kinematicBasis1DQuadValues[(k % (order + 1)) * quadOrder + quadi] *
+          kinematicBasis1DQuadValues[(k / (order + 1)) * quadOrder + quadj];
 
-      for (size_t basisi = 0; basisi < (order + 1) * (order + 1); basisi++) {
-        const double basisi2D =
-            advectionBasis1DQuadValues[(basisi % (order + 1)) * quadOrder +
-                                       quadi] *
-            advectionBasis1DQuadValues[(basisi / (order + 1)) * quadOrder +
-                                       quadj];
+      uMeshLocal += uk * basisk2D;
+      vMeshLocal += vk * basisk2D;
+    }
 
-        for (size_t basisj = 0; basisj < (order + 1) * (order + 1); basisj++) {
-          const double basisj2Ddx =
-              advectionBasis1DdxQuadValues[(basisj % (order + 1)) * quadOrder +
-                                           quadi] *
-              advectionBasis1DQuadValues[(basisj / (order + 1)) * quadOrder +
-                                         quadj];
-          const double basisj2Ddy =
-              advectionBasis1DQuadValues[(basisj % (order + 1)) * quadOrder +
+    for (size_t basisi = 0; basisi < (order + 1) * (order + 1); basisi++) {
+      const double basisi2D =
+          advectionBasis1DQuadValues[(basisi % (order + 1)) * quadOrder +
+                                     quadi] *
+          advectionBasis1DQuadValues[(basisi / (order + 1)) * quadOrder +
+                                     quadj];
+
+      for (size_t basisj = 0; basisj < (order + 1) * (order + 1); basisj++) {
+        const double basisj2Ddx =
+            advectionBasis1DdxQuadValues[(basisj % (order + 1)) * quadOrder +
                                          quadi] *
-              advectionBasis1DdxQuadValues[(basisj / (order + 1)) * quadOrder +
-                                           quadj];
+            advectionBasis1DQuadValues[(basisj / (order + 1)) * quadOrder +
+                                       quadj];
+        const double basisj2Ddy =
+            advectionBasis1DQuadValues[(basisj % (order + 1)) * quadOrder +
+                                       quadi] *
+            advectionBasis1DdxQuadValues[(basisj / (order + 1)) * quadOrder +
+                                         quadj];
 
-          double dotProd = uMeshLocal * basisj2Ddx + vMeshLocal * basisj2Ddy;
+        double dotProd = uMeshLocal * basisj2Ddx + vMeshLocal * basisj2Ddy;
 
-          output(basisi, basisj) += legendreWeights[indMin + quadi] *
-                                    legendreWeights[indMin + quadj] * basisi2D *
-                                    dotProd * jacDet;
-        }
+        output(basisi, basisj) += legendreWeights[indMin + quadi] *
+                                  legendreWeights[indMin + quadj] * basisi2D *
+                                  dotProd * jacDet;
       }
     }
   }
@@ -1369,9 +1376,10 @@ void FEMALEMethod::initVectorMatrices() {
   vectorMass.reserve(
       Eigen::VectorXi::Constant(Nk, (2 * order + 1) * (2 * order + 1)));
 
-  const Eigen::Matrix<double, 2, 2> cellVectorMass = quadCellVectorMass();
-  const Eigen::Matrix<double, 2, 2> cellVectorLaplacian =
-      quadCellVectorLaplacian();
+  const Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> cellVectorMass =
+      quadCellVectorMass();
+  const Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic>
+      cellVectorLaplacian = quadCellVectorLaplacian();
 
   for (size_t celli = 0; celli < xSize; celli++) {
     for (size_t cellj = 0; cellj < ySize; cellj++) {
@@ -1700,7 +1708,7 @@ void FEMALEMethod::calcKv(const Eigen::Matrix<double, Eigen::Dynamic, 1> &x,
 void FEMALEMethod::calcK(const Eigen::Matrix<double, Eigen::Dynamic, 1> &x,
                          const Eigen::Matrix<double, Eigen::Dynamic, 1> &y) {
   K.setZero();
-  K.reserve(Eigen::VectorXi::Constant(Nk, (2 * order + 1) * (2 * order + 1)));
+  K.reserve(Eigen::VectorXi::Constant(Na, (2 * order + 1) * (2 * order + 1)));
   for (size_t celli = 0; celli < xSize; celli++) {
     for (size_t cellj = 0; cellj < ySize; cellj++) {
       Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> cellK =
@@ -1747,7 +1755,7 @@ void FEMALEMethod::calcAuxMat() {
 
   // D and Kstar;
   D.setZero();
-  D.reserve(Eigen::VectorXi::Constant(Nk, (2 * order + 1) * (2 * order + 1)));
+  D.reserve(Eigen::VectorXi::Constant(Na, (2 * order + 1) * (2 * order + 1)));
   for (size_t i = 0; i < Na; i++) {
     for (size_t j = 0; j < i; j++) {
       double Dij = std::max(-K.coeff(i, j), -K.coeff(j, i));
@@ -1806,7 +1814,7 @@ void FEMALEMethod::optimizeMesh() {
   Eigen::Matrix<double, Eigen::Dynamic, 1> bx = vectorMass * x;
   Eigen::Matrix<double, Eigen::Dynamic, 1> by = vectorMass * y;
 
-  constexpr size_t nSteps = 10;
+  constexpr size_t nSteps = 100;
   for (size_t iter = 0; iter < nSteps; iter++) {
     xTmp.swap(xOptimal);
     yTmp.swap(yOptimal);
@@ -1995,6 +2003,7 @@ void FEMALEMethod::transitionToLagrange() {
   transitionEToLagrange();
   calcKinematicMassMatrix();
   calcThermoMassMatrix();
+  initSolvers();
   xInitial = x;
   yInitial = y;
 }
@@ -2098,12 +2107,17 @@ void FEMALEMethod::calcTau(double hmin, double soundSpeed, double rhoLocal,
 }
 
 void FEMALEMethod::calcRemapTau() {
+  remapTau = remapTMax - remapT;
   for (size_t i = 0; i < Na; i++) {
     const double Mii = Mlumped.coeff(i, i);
     const double Kii = Kupwinded.coeff(i, i);
-    assert(Mii != 0.0);
-    assert(Kii != 0.0);
-    const double dtTmp = remapCFL * Mii / Kii;
+    if (Kii == 0.0) {
+      continue;
+    }
+    // assert(Mii != 0.0);
+    // assert(Kii != 0.0);
+    const double dtTmp = remapCFL * std::abs(Mii / Kii);
+    assert(dtTmp > 0.0);
     if (dtTmp < remapTau) {
       remapTau = dtTmp;
     }
@@ -2603,9 +2617,9 @@ void FEMALEMethod::remapStep() {
   if (remapTau < remapDt) {
     remapDt = remapTau;
   }
-  u = MvSolver.solve(Kv * u);
+  u += remapDt * MvSolver.solve(Kv * u);
   assert(MvSolver.info() == Eigen::Success);
-  v = MvSolver.solve(Kv * v);
+  v += remapDt * MvSolver.solve(Kv * v);
   assert(MvSolver.info() == Eigen::Success);
 
   remapStepRhoPrepare();
@@ -2630,6 +2644,7 @@ void FEMALEMethod::remapStep() {
 
   x += uMesh * remapDt;
   y += vMesh * remapDt;
+  remapT += remapDt;
 }
 
 void FEMALEMethod::remapStepRhoPrepare() {
@@ -2756,9 +2771,15 @@ void FEMALEMethod::remapStepRhoFluxLimiting() {
 
   Eigen::Matrix<double, Eigen::Dynamic, 1> betaPlus(Na);
   Eigen::Matrix<double, Eigen::Dynamic, 1> betaMinus(Na);
+  betaPlus.setOnes();
+  betaMinus.setOnes();
   for (size_t i = 0; i < Na; i++) {
-    betaPlus(i) = std::min(1.0, dRhoMax(i) / dRhoPlus(i));
-    betaMinus(i) = std::min(1.0, dRhoMin(i) / dRhoMinus(i));
+    if (dRhoPlus(i) != 0.0) {
+      betaPlus(i) = std::min(1.0, dRhoMax(i) / dRhoPlus(i));
+    }
+    if (dRhoMinus(i) != 0.0) {
+      betaMinus(i) = std::min(1.0, dRhoMin(i) / dRhoMinus(i));
+    }
   }
 
   for (int k = 0; k < antidiffusiveFlux.outerSize(); k++) {
@@ -2978,7 +2999,9 @@ Eigen::Matrix<double, 2, 2> FEMALEMethod::getCellJacobian(
     const size_t celli, const size_t cellj, const size_t quadi,
     const size_t quadj, const Eigen::Matrix<double, Eigen::Dynamic, 1> &x,
     const Eigen::Matrix<double, Eigen::Dynamic, 1> &y) const {
-  Eigen::Matrix<double, 2, 2> jacobian = Eigen::Matrix<double, 2, 2>::Zero();
+  Eigen::Matrix<double, 2, 2> jacobian;
+  jacobian.setZero();
+
   for (size_t k = 0; k < (order + 1) * (order + 1); k++) {
     size_t indK = getKinematicIndexFromCell(celli, cellj, k);
     double xk = x(indK);

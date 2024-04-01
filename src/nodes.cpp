@@ -121,7 +121,7 @@ double bernsteinBasis1D(double x, size_t order, size_t k) {
     denominator *= i;
   }
   double coeff = numerator / denominator;
-  return coeff * std::pow(x, k) * std::pow(x, order - k);
+  return coeff * std::pow(x, k) * std::pow(1.0 - x, order - k);
 }
 double bernsteinBasis1Ddx(double x, size_t order, size_t k) {
   assert(k <= order);
@@ -138,11 +138,11 @@ double bernsteinBasis1Ddx(double x, size_t order, size_t k) {
   double coeff = numerator / denominator;
   double leftPart = 0.0;
   double rightPart = 0.0;
-  if (k != 0) {
-    leftPart = k * std::pow(x, k - 1) * std::pow(x, order - k);
+  if (k > 0) {
+    leftPart = k * std::pow(x, k - 1) * std::pow(1.0 - x, order - k);
   }
-  if (k != order) {
-    rightPart = -(order - k) * std::pow(x, k) * std::pow(x, order - k - 1);
+  if (k < order) {
+    rightPart = (order - k) * std::pow(x, k) * std::pow(1.0 - x, order - k - 1);
   }
-  return coeff * (leftPart + rightPart);
+  return coeff * (leftPart - rightPart);
 }
