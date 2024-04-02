@@ -248,7 +248,7 @@ class FEMALEMethod : public Method {
   const size_t Nk;  // Number kinematic space points
   const size_t Nt;  // Number of thermodynamic space points
   const size_t Na;  // Number of advection space points
-  const size_t remapFrequency = 10;
+  const size_t remapFrequency = 1;
   const double q1 = 0.5;
   const double q2 = 2.0;
   const double alpha = 0.5;

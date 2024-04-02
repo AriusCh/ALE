@@ -1791,10 +1791,10 @@ void FEMALEMethod::optimizeMesh() {
 
   // DECOMPOSITION A = D + L + U
   // TEST with 0.5 * eps to account for multiple dimensions
-  Eigen::SparseMatrix<double> Ax = eps * vectorLaplacianX + vectorMassX;
-  Eigen::SparseMatrix<double> Ay = eps * vectorLaplacianY + vectorMassY;
-  Ax.makeCompressed();
-  Ay.makeCompressed();
+  // Eigen::SparseMatrix<double> Ax = eps * vectorLaplacianX + vectorMassX;
+  // Eigen::SparseMatrix<double> Ay = eps * vectorLaplacianY + vectorMassY;
+  // Ay.makeCompressed();
+  // Ax.makeCompressed();
 
   // Eigen::SparseMatrix<double> Dx_inv(Nk, Nk);
   // Eigen::SparseMatrix<double> Dy_inv(Nk, Nk);
@@ -1807,32 +1807,72 @@ void FEMALEMethod::optimizeMesh() {
   //   Dy_inv.insert(i, i) = 1.0 / Ayii;
   // }
 
-  Eigen::SparseMatrix<double> LUx = Ax;
-  Eigen::SparseMatrix<double> LUy = Ay;
-  for (size_t i = 0; i < Nk; i++) {
-    LUx.coeffRef(i, i) = 0.0;
-    LUy.coeffRef(i, i) = 0.0;
-  }
+  // Eigen::SparseMatrix<double> LUx = Ax;
+  // Eigen::SparseMatrix<double> LUy = Ay;
+  // for (size_t i = 0; i < Nk; i++) {
+  //   LUx.coeffRef(i, i) = 0.0;
+  //   LUy.coeffRef(i, i) = 0.0;
+  // }
+  //
+  // Eigen::Matrix<double, Eigen::Dynamic, 1> bx = vectorMassX * x;
+  // Eigen::Matrix<double, Eigen::Dynamic, 1> by = vectorMassY * y;
+  //
+  // constexpr size_t nSteps = 100;
+  // for (size_t iter = 0; iter < nSteps; iter++) {
+  //   // xTmp.swap(xOptimal);
+  //   // yTmp.swap(yOptimal);
+  //   // xOptimal = Dx_inv * (bx - LUx * xTmp);
+  //   // yOptimal = Dy_inv * (by - LUy * yTmp);
+  //   Eigen::VectorXd rhsx = bx - LUx * xOptimal;
+  //   Eigen::VectorXd rhsy = by - LUy * yOptimal;
+  //   for (size_t i = 0; i < Nk; i++) {
+  //     const double Axii = Ax.coeff(i, i);
+  //     const double Ayii = Ay.coeff(i, i);
+  //     if (Axii != 0.0) {
+  //       xOptimal(i) = rhsx(i) / Axii;
+  //     }
+  //     if (Ayii != 0.0) {
+  //       yOptimal(i) = rhsy(i) / Ayii;
+  //     }
+  //   }
+  // }
 
-  Eigen::Matrix<double, Eigen::Dynamic, 1> bx = vectorMassX * x;
-  Eigen::Matrix<double, Eigen::Dynamic, 1> by = vectorMassY * y;
+  for (size_t celli = 0; celli < xSize; celli++) {
+    for (size_t cellj = 0; cellj < ySize; cellj++) {
+      for (size_t i = 0; i < (order + 1) * (order + 1); i++) {
+        if (celli == 0 && i % (order + 1) == 0) {
+          continue;
+        }
+        if (celli == xSize - 1 && i % (order + 1) == order) {
+          continue;
+        }
+        if (cellj == 0 && i / (order + 1) == 0) {
+          continue;
+        }
+        if (cellj == ySize - 1 && i / (order + 1) == order) {
+          continue;
+        }
+        const size_t indI = getKinematicIndexFromCell(celli, cellj, i);
+        assert(indI > order * ySize + 1);
+        const size_t indLeft = indI - order * ySize - 1;
+        const size_t indTop = indI + 1;
+        const size_t indRight = indI + order * ySize - 1;
+        const size_t indBottom = indI - 1;
 
-  constexpr size_t nSteps = 100;
-  for (size_t iter = 0; iter < nSteps; iter++) {
-    // xTmp.swap(xOptimal);
-    // yTmp.swap(yOptimal);
-    // xOptimal = Dx_inv * (bx - LUx * xTmp);
-    // yOptimal = Dy_inv * (by - LUy * yTmp);
-    Eigen::VectorXd rhsx = bx - LUx * xOptimal;
-    Eigen::VectorXd rhsy = by - LUy * yOptimal;
-    for (size_t i = 0; i < Nk; i++) {
-      const double Axii = Ax.coeff(i, i);
-      const double Ayii = Ay.coeff(i, i);
-      if (Axii != 0.0) {
-        xOptimal(i) = rhsx(i) / Axii;
-      }
-      if (Ayii != 0.0) {
-        yOptimal(i) = rhsy(i) / Ayii;
+        const double xI = x(indI);
+        const double xLeft = x(indLeft);
+        const double xTop = x(indTop);
+        const double xRight = x(indRight);
+        const double xBottom = x(indBottom);
+
+        const double yI = y(indI);
+        const double yLeft = y(indLeft);
+        const double yTop = y(indTop);
+        const double yRight = y(indRight);
+        const double yBottom = y(indBottom);
+
+        xOptimal(indI) = 0.125 * (4.0 * xI + xLeft + xTop + xRight + xBottom);
+        yOptimal(indI) = 0.125 * (4.0 * yI + yLeft + yTop + yRight + yBottom);
       }
     }
   }
@@ -2804,6 +2844,8 @@ void FEMALEMethod::remapStepRhoFluxLimiting() {
   Eigen::Matrix<double, Eigen::Dynamic, 1> dRhoMin = rhoRemapMin - rhoRemapAvg;
   Eigen::Matrix<double, Eigen::Dynamic, 1> dRhoPlus(Na);
   Eigen::Matrix<double, Eigen::Dynamic, 1> dRhoMinus(Na);
+  dRhoPlus.setZero();
+  dRhoMinus.setZero();
   for (int k = 0; k < antidiffusiveFlux.outerSize(); k++) {
     for (Eigen::SparseMatrix<double>::InnerIterator it(antidiffusiveFlux, k);
          it; ++it) {
@@ -2891,7 +2933,7 @@ void FEMALEMethod::remapStepRhoEMinMaxCell(const size_t celli,
   for (size_t i = 0; i < (order + 1) * (order + 1); i++) {
     const size_t indI = getAdvectionIndexFromCell(celli, cellj, i);
     eRemapMin(indI) = eMinCell;
-    eRemapMin(indI) = eMaxCell;
+    eRemapMax(indI) = eMaxCell;
   }
 }
 
@@ -2984,6 +3026,8 @@ void FEMALEMethod::remapStepRhoEFluxLimiting() {
       (rhoRemap.array() * eRemapMin.array()).matrix() - rhoERemapAvg;
   Eigen::Matrix<double, Eigen::Dynamic, 1> dRhoEPlus(Na);
   Eigen::Matrix<double, Eigen::Dynamic, 1> dRhoEMinus(Na);
+  dRhoEPlus.setZero();
+  dRhoEMinus.setZero();
   for (int k = 0; k < antidiffusiveFlux.outerSize(); k++) {
     for (Eigen::SparseMatrix<double>::InnerIterator it(antidiffusiveFlux, k);
          it; ++it) {
@@ -3004,8 +3048,12 @@ void FEMALEMethod::remapStepRhoEFluxLimiting() {
   Eigen::Matrix<double, Eigen::Dynamic, 1> betaPlus(Na);
   Eigen::Matrix<double, Eigen::Dynamic, 1> betaMinus(Na);
   for (size_t i = 0; i < Na; i++) {
-    betaPlus(i) = std::min(1.0, dRhoEMax(i) / dRhoEPlus(i));
-    betaMinus(i) = std::min(1.0, dRhoEMin(i) / dRhoEMinus(i));
+    if (dRhoEPlus(i) != 0.0) {
+      betaPlus(i) = std::min(1.0, dRhoEMax(i) / dRhoEPlus(i));
+    }
+    if (dRhoEMinus(i) != 0.0) {
+      betaMinus(i) = std::min(1.0, dRhoEMin(i) / dRhoEMinus(i));
+    }
   }
 
   for (int k = 0; k < antidiffusiveFlux.outerSize(); k++) {
