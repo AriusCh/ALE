@@ -374,7 +374,7 @@ class FEMALEMethod : public Method {
   std::vector<double> output1DKinematicValues;
   std::vector<double> output1DdxKinematicValues;
   std::vector<double> output1DThermoValues;
-  std::vector<double> output1DRhoValues;
+  std::vector<double> output1DQuadValues;
 
   std::function<std::shared_ptr<EOS>(double x, double y)>
       eosInitializer;  // Function that returns EOSes to use in the grid

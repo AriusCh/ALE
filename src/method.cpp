@@ -167,8 +167,8 @@ void FEMALEMethod::dumpData() const {
           const size_t indRho = getQuadIndexFromCell(celli, cellj, k);
           const double rhok = rhoQuad(indRho);
           const double basis2D =
-              output1DRhoValues[(k % quadOrder) * order + i % order] *
-              output1DRhoValues[(k / quadOrder) * order + j % order];
+              output1DQuadValues[(k % quadOrder) * order + i % order] *
+              output1DQuadValues[(k / quadOrder) * order + j % order];
 
           rho += rhok * basis2D;
         }
@@ -1260,7 +1260,7 @@ void FEMALEMethod::initOutputBasisValues() {
   output1DKinematicValues.reserve((order + 1) * order);
   output1DdxKinematicValues.reserve((order + 1) * order);
   output1DThermoValues.reserve(order * order);
-  output1DRhoValues.reserve(quadOrder * order);
+  output1DQuadValues.reserve(quadOrder * order);
 
   const double dx = 1.0 / order;
   for (size_t k = 0; k < order + 1; k++) {
@@ -1281,7 +1281,7 @@ void FEMALEMethod::initOutputBasisValues() {
   for (size_t k = 0; k < quadOrder; k++) {
     for (size_t i = 0; i < order; i++) {
       double xi = 0.5 * dx + dx * i;
-      output1DRhoValues.push_back(legendreBasis1D(xi, quadOrder - 1, k));
+      output1DQuadValues.push_back(legendreBasis1D(xi, quadOrder - 1, k));
     }
   }
 }
@@ -1637,6 +1637,8 @@ void FEMALEMethod::calcRemapMatrices(
 void FEMALEMethod::calcMv(const Eigen::Matrix<double, Eigen::Dynamic, 1> &x,
                           const Eigen::Matrix<double, Eigen::Dynamic, 1> &y) {
   Mv.setZero();
+  Mv.reserve(Eigen::VectorXi::Constant(Nk, (2 * order + 1) * (2 * order + 1)));
+#pragma omp parallel for
   for (size_t celli = 0; celli < xSize; celli++) {
     for (size_t cellj = 0; cellj < ySize; cellj++) {
       Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> cellMv =
@@ -1653,14 +1655,13 @@ void FEMALEMethod::calcMv(const Eigen::Matrix<double, Eigen::Dynamic, 1> &x,
     }
   }
 
-  if (!Mv.isCompressed()) {
-    Mv.makeCompressed();
-  }
+  Mv.makeCompressed();
   MvSolver.compute(Mv);
 }
 
 void FEMALEMethod::calcM(const Eigen::Matrix<double, Eigen::Dynamic, 1> &x,
                          const Eigen::Matrix<double, Eigen::Dynamic, 1> &y) {
+#pragma omp parallel for
   for (size_t celli = 0; celli < xSize; celli++) {
     for (size_t cellj = 0; cellj < ySize; cellj++) {
       Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> cellM =
@@ -1690,6 +1691,8 @@ void FEMALEMethod::calcM(const Eigen::Matrix<double, Eigen::Dynamic, 1> &x,
 void FEMALEMethod::calcKv(const Eigen::Matrix<double, Eigen::Dynamic, 1> &x,
                           const Eigen::Matrix<double, Eigen::Dynamic, 1> &y) {
   Kv.setZero();
+  Kv.reserve(Eigen::VectorXi::Constant(Nk, (2 * order + 1) * (2 * order + 1)));
+#pragma omp parallel for
   for (size_t celli = 0; celli < xSize; celli++) {
     for (size_t cellj = 0; cellj < ySize; cellj++) {
       Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> cellKv =
@@ -1706,14 +1709,14 @@ void FEMALEMethod::calcKv(const Eigen::Matrix<double, Eigen::Dynamic, 1> &x,
     }
   }
 
-  if (!Kv.isCompressed()) {
-    Kv.makeCompressed();
-  }
+  Kv.makeCompressed();
 }
+
 void FEMALEMethod::calcK(const Eigen::Matrix<double, Eigen::Dynamic, 1> &x,
                          const Eigen::Matrix<double, Eigen::Dynamic, 1> &y) {
   K.setZero();
   K.reserve(Eigen::VectorXi::Constant(Na, (2 * order + 1) * (2 * order + 1)));
+#pragma omp parallel for
   for (size_t celli = 0; celli < xSize; celli++) {
     for (size_t cellj = 0; cellj < ySize; cellj++) {
       Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> cellK =
@@ -1741,11 +1744,15 @@ void FEMALEMethod::calcAuxMat() {
   L = -M;
   for (size_t i = 0; i < Na; i++) {
     L.coeffRef(i, i) = 0.0;
-    for (size_t j = 0; j < i; j++) {
-      L.coeffRef(i, i) -= L.coeff(i, j);
-    }
-    for (size_t j = i + 1; j < Na; j++) {
-      L.coeffRef(i, i) -= L.coeff(i, j);
+  }
+  for (int k = 0; k < L.outerSize(); k++) {
+    for (Eigen::SparseMatrix<double>::InnerIterator it(L, k); it; ++it) {
+      const size_t indI = it.row();
+      const size_t indJ = it.col();
+      if (indI == indJ) {
+        continue;
+      }
+      L.coeffRef(indI, indI) -= it.value();
     }
   }
   Mlumped = M + L;
@@ -1761,24 +1768,20 @@ void FEMALEMethod::calcAuxMat() {
   // D and Kstar;
   D.setZero();
   D.reserve(Eigen::VectorXi::Constant(Na, (2 * order + 1) * (2 * order + 1)));
-  for (size_t i = 0; i < Na; i++) {
-    for (size_t j = 0; j < i; j++) {
-      double Dij = std::max(-K.coeff(i, j), -K.coeff(j, i));
+  for (int k = 0; k < K.outerSize(); k++) {
+    for (Eigen::SparseMatrix<double>::InnerIterator it(K, k); it; ++it) {
+      const size_t indI = it.row();
+      const size_t indJ = it.col();
+      if (indI == indJ) {
+        continue;
+      }
+      double Dij = std::max(-K.coeff(indI, indJ), -K.coeff(indJ, indI));
       Dij = std::max(0.0, Dij);
       if (Dij == 0.0) {
         continue;
       }
-      D.coeffRef(i, j) = Dij;
-      D.coeffRef(i, i) -= Dij;
-    }
-    for (size_t j = i + 1; j < Na; j++) {
-      double Dij = std::max(-K.coeff(i, j), -K.coeff(j, i));
-      Dij = std::max(0.0, Dij);
-      if (Dij == 0.0) {
-        continue;
-      }
-      D.coeffRef(i, j) = Dij;
-      D.coeffRef(i, i) -= Dij;
+      D.coeffRef(indI, indJ) = Dij;
+      D.coeffRef(indI, indI) -= Dij;
     }
   }
   D.makeCompressed();
@@ -1837,45 +1840,46 @@ void FEMALEMethod::optimizeMesh() {
   //   }
   // }
 
-  for (size_t celli = 0; celli < xSize; celli++) {
-    for (size_t cellj = 0; cellj < ySize; cellj++) {
-      for (size_t i = 0; i < (order + 1) * (order + 1); i++) {
-        if (celli == 0 && i % (order + 1) == 0) {
-          continue;
-        }
-        if (celli == xSize - 1 && i % (order + 1) == order) {
-          continue;
-        }
-        if (cellj == 0 && i / (order + 1) == 0) {
-          continue;
-        }
-        if (cellj == ySize - 1 && i / (order + 1) == order) {
-          continue;
-        }
-        const size_t indI = getKinematicIndexFromCell(celli, cellj, i);
-        assert(indI > order * ySize + 1);
-        const size_t indLeft = indI - order * ySize - 1;
-        const size_t indTop = indI + 1;
-        const size_t indRight = indI + order * ySize - 1;
-        const size_t indBottom = indI - 1;
-
-        const double xI = x(indI);
-        const double xLeft = x(indLeft);
-        const double xTop = x(indTop);
-        const double xRight = x(indRight);
-        const double xBottom = x(indBottom);
-
-        const double yI = y(indI);
-        const double yLeft = y(indLeft);
-        const double yTop = y(indTop);
-        const double yRight = y(indRight);
-        const double yBottom = y(indBottom);
-
-        xOptimal(indI) = 0.125 * (4.0 * xI + xLeft + xTop + xRight + xBottom);
-        yOptimal(indI) = 0.125 * (4.0 * yI + yLeft + yTop + yRight + yBottom);
-      }
-    }
-  }
+  // for (size_t celli = 0; celli < xSize; celli++) {
+  //   for (size_t cellj = 0; cellj < ySize; cellj++) {
+  //     for (size_t i = 0; i < (order + 1) * (order + 1); i++) {
+  //       if (celli == 0 && i % (order + 1) == 0) {
+  //         continue;
+  //       }
+  //       if (celli == xSize - 1 && i % (order + 1) == order) {
+  //         continue;
+  //       }
+  //       if (cellj == 0 && i / (order + 1) == 0) {
+  //         continue;
+  //       }
+  //       if (cellj == ySize - 1 && i / (order + 1) == order) {
+  //         continue;
+  //       }
+  //       const size_t indI = getKinematicIndexFromCell(celli, cellj, i);
+  //       assert(indI >= order * ySize + 1);
+  //       const size_t indLeft = indI - order * ySize - 1;
+  //       const size_t indTop = indI + 1;
+  //       const size_t indRight = indI + order * ySize + 1;
+  //       const size_t indBottom = indI - 1;
+  //
+  //       const double xI = x(indI);
+  //       const double xLeft = x(indLeft);
+  //       const double xTop = x(indTop);
+  //       const double xRight = x(indRight);
+  //       const double xBottom = x(indBottom);
+  //
+  //       const double yI = y(indI);
+  //       const double yLeft = y(indLeft);
+  //       const double yTop = y(indTop);
+  //       const double yRight = y(indRight);
+  //       const double yBottom = y(indBottom);
+  //
+  //       xOptimal(indI) = 0.125 * (4.0 * xI + xLeft + xTop + xRight +
+  //       xBottom); yOptimal(indI) = 0.125 * (4.0 * yI + yLeft + yTop + yRight
+  //       + yBottom);
+  //     }
+  //   }
+  // }
 
   uMesh = xOptimal - x;
   vMesh = yOptimal - y;
@@ -1911,6 +1915,9 @@ void FEMALEMethod::preTransitionRhoToRemap() {
 void FEMALEMethod::transitionRhoToRemap() {
   for (size_t celli = 0; celli < xSize; celli++) {
     for (size_t cellj = 0; cellj < ySize; cellj++) {
+      if (celli == 50) {
+        auto j = 0;
+      }
       preRhoToRemap(celli, cellj);
       FCTProjection();
       postRhoToRemap(celli, cellj);
@@ -2089,7 +2096,15 @@ void FEMALEMethod::transitionRhoToLagrange() {
   }
 }
 
-void FEMALEMethod::transitionEToLagrange() {}
+void FEMALEMethod::transitionEToLagrange() {
+  for (size_t celli = 0; celli < xSize; celli++) {
+    for (size_t cellj = 0; cellj < ySize; cellj++) {
+      preEToLagrange(celli, cellj);
+      FCTProjection();
+      postEToLagrange(celli, cellj);
+    }
+  }
+}
 
 void FEMALEMethod::preEToLagrange(size_t celli, size_t cellj) {
   const size_t nProj = order * order;
@@ -2146,7 +2161,14 @@ void FEMALEMethod::preEToLagrange(size_t celli, size_t cellj) {
   ymax = Eigen::VectorXd::Constant(nProj, eMax);
 }
 
-void postEToLagrange(size_t celli, size_t cellj);
+void FEMALEMethod::postEToLagrange(size_t celli, size_t cellj) {
+  const size_t nProj = order * order;
+  assert(xyOut.size() == nProj);
+  for (size_t k = 0; k < nProj; k++) {
+    const size_t indK = getThermodynamicIndexFromCell(celli, cellj, k);
+    e(indK) = xyOut(k);
+  }
+}
 
 void FEMALEMethod::calcTau(double hmin, double soundSpeed, double rhoLocal,
                            double maxViscosityCoeff) {
@@ -2170,8 +2192,7 @@ void FEMALEMethod::calcRemapTau() {
       continue;
     }
     assert(Mii != 0.0);
-    // assert(Mii != 0.0);
-    // assert(Kii != 0.0);
+    assert(Kii <= 1e-16);
     const double dtTmp = remapCFL * std::abs(Mii / Kii);
     assert(dtTmp > 0.0);
     if (dtTmp < remapTau) {
@@ -2801,7 +2822,10 @@ void FEMALEMethod::remapStepRhoFlux() {
       const double Mij = it.value();
       const double dRhoHighi = rhoRemapHigh(indI) - rhoRemap(indI);
       const double dRhoHighj = rhoRemapHigh(indJ) - rhoRemap(indJ);
-      antidiffusiveFlux.coeffRef(indI, indJ) += Mij * (dRhoHighi - dRhoHighj);
+      const double fluxValue = Mij * (dRhoHighi - dRhoHighj);
+      if (fluxValue != 0.0) {
+        antidiffusiveFlux.coeffRef(indI, indJ) += fluxValue;
+      }
     }
   }
   for (int k = 0; k < D.outerSize(); k++) {
@@ -2810,10 +2834,12 @@ void FEMALEMethod::remapStepRhoFlux() {
       const size_t indJ = it.col();
       const double Dij = it.value();
       const double dRhoij = rhoRemap(indI) - rhoRemap(indJ);
-      antidiffusiveFlux.coeffRef(indI, indJ) += remapDt * Dij * dRhoij;
+      const double fluxValue = remapDt * Dij * dRhoij;
+      if (fluxValue != 0.0) {
+        antidiffusiveFlux.coeffRef(indI, indJ) += fluxValue;
+      }
     }
   }
-  antidiffusiveFlux.makeCompressed();
   const size_t nInCell = (order + 1) * (order + 1);
   for (size_t celli = 0; celli < xSize; celli++) {
     for (size_t cellj = 0; cellj < ySize; cellj++) {
@@ -2826,12 +2852,15 @@ void FEMALEMethod::remapStepRhoFlux() {
           const double mj = Mlumped.coeff(j, j);
           const double dRhoLowj = rhoRemapLow(indJ) - rhoRemapAvg(indJ);
 
-          antidiffusiveFlux.coeffRef(indI, indJ) +=
-              (mi * dRhoLowi - mj * dRhoLowj) / nInCell;
+          const double fluxValue = (mi * dRhoLowi - mj * dRhoLowj) / nInCell;
+          if (fluxValue != 0.0) {
+            antidiffusiveFlux.coeffRef(indI, indJ) += fluxValue;
+          }
         }
       }
     }
   }
+  antidiffusiveFlux.makeCompressed();
   assert(antidiffusiveFlux.isCompressed());
   remapStepRhoFluxLimiting();
 }
@@ -2855,10 +2884,11 @@ void FEMALEMethod::remapStepRhoFluxLimiting() {
         continue;
       }
       const double gij = it.value();
-      if (gij >= 0.0) {
-        dRhoPlus(indI) += gij / Mlumped.coeff(indI, indI);
-      } else {
-        dRhoMinus(indI) += gij / Mlumped.coeff(indI, indI);
+      const double mi = Mlumped.coeff(indI, indI);
+      if (gij > 0.0) {
+        dRhoPlus(indI) += gij / mi;
+      } else if (gij < 0.0) {
+        dRhoMinus(indI) += gij / mi;
       }
     }
   }
@@ -2885,7 +2915,7 @@ void FEMALEMethod::remapStepRhoFluxLimiting() {
       if (gij > 0.0) {
         fluxLimitingFactors.coeffRef(indI, indJ) =
             std::min(betaPlus(indI), betaMinus(indJ));
-      } else {
+      } else if (gij < 0.0) {
         fluxLimitingFactors.coeffRef(indI, indJ) =
             std::min(betaMinus(indI), betaPlus(indJ));
       }
@@ -2895,7 +2925,7 @@ void FEMALEMethod::remapStepRhoFluxLimiting() {
 }
 
 void FEMALEMethod::remapStepRhoFinal() {
-  rhoRemap.setZero();
+  rhoRemap = rhoRemapAvg;
 
   for (int k = 0; k < antidiffusiveFlux.outerSize(); k++) {
     for (Eigen::SparseMatrix<double>::InnerIterator it(antidiffusiveFlux, k);
@@ -2911,8 +2941,6 @@ void FEMALEMethod::remapStepRhoFinal() {
       rhoRemap(indI) += betaij * gij / mi;
     }
   }
-
-  rhoRemap += rhoRemapAvg;
 }
 
 void FEMALEMethod::remapStepRhoEPrepare() {
@@ -2981,7 +3009,10 @@ void FEMALEMethod::remapStepRhoEFlux() {
       const double Mij = it.value();
       const double dRhoEHighi = rhoERemapHigh(indI) - rhoERemap(indI);
       const double dRhoEHighj = rhoERemapHigh(indJ) - rhoERemap(indJ);
-      antidiffusiveFlux.coeffRef(indI, indJ) += Mij * (dRhoEHighi - dRhoEHighj);
+      const double fluxValue = Mij * (dRhoEHighi - dRhoEHighj);
+      if (fluxValue != 0.0) {
+        antidiffusiveFlux.coeffRef(indI, indJ) += fluxValue;
+      }
     }
   }
   for (int k = 0; k < D.outerSize(); k++) {
@@ -2990,10 +3021,12 @@ void FEMALEMethod::remapStepRhoEFlux() {
       const size_t indJ = it.col();
       const double Dij = it.value();
       const double dRhoEij = rhoERemap(indI) - rhoERemap(indJ);
-      antidiffusiveFlux.coeffRef(indI, indJ) += remapDt * Dij * dRhoEij;
+      const double fluxValue = remapDt * Dij * dRhoEij;
+      if (fluxValue != 0.0) {
+        antidiffusiveFlux.coeffRef(indI, indJ) += fluxValue;
+      }
     }
   }
-  antidiffusiveFlux.makeCompressed();
   const size_t nInCell = (order + 1) * (order + 1);
   for (size_t celli = 0; celli < xSize; celli++) {
     for (size_t cellj = 0; cellj < ySize; cellj++) {
@@ -3006,12 +3039,15 @@ void FEMALEMethod::remapStepRhoEFlux() {
           const double mj = Mlumped.coeff(j, j);
           const double dRhoELowj = rhoERemapLow(indJ) - rhoERemapAvg(indJ);
 
-          antidiffusiveFlux.coeffRef(indI, indJ) +=
-              (mi * dRhoELowi - mj * dRhoELowj) / nInCell;
+          const double fluxValue = (mi * dRhoELowi - mj * dRhoELowj) / nInCell;
+          if (fluxValue != 0.0) {
+            antidiffusiveFlux.coeffRef(indI, indJ) += fluxValue;
+          }
         }
       }
     }
   }
+  antidiffusiveFlux.makeCompressed();
   assert(antidiffusiveFlux.isCompressed());
   remapStepRhoEFluxLimiting();
 }
@@ -3037,16 +3073,19 @@ void FEMALEMethod::remapStepRhoEFluxLimiting() {
         continue;
       }
       const double gij = it.value();
-      if (gij >= 0.0) {
-        dRhoEPlus(indI) += gij / Mlumped.coeff(indI, indI);
-      } else {
-        dRhoEMinus(indI) += gij / Mlumped.coeff(indI, indI);
+      const double mi = Mlumped.coeff(indI, indI);
+      if (gij > 0.0) {
+        dRhoEPlus(indI) += gij / mi;
+      } else if (gij < 0.0) {
+        dRhoEMinus(indI) += gij / mi;
       }
     }
   }
 
   Eigen::Matrix<double, Eigen::Dynamic, 1> betaPlus(Na);
   Eigen::Matrix<double, Eigen::Dynamic, 1> betaMinus(Na);
+  betaPlus.setOnes();
+  betaMinus.setOnes();
   for (size_t i = 0; i < Na; i++) {
     if (dRhoEPlus(i) != 0.0) {
       betaPlus(i) = std::min(1.0, dRhoEMax(i) / dRhoEPlus(i));
@@ -3065,7 +3104,7 @@ void FEMALEMethod::remapStepRhoEFluxLimiting() {
       if (gij > 0.0) {
         fluxLimitingFactors.coeffRef(indI, indJ) =
             std::min(betaPlus(indI), betaMinus(indJ));
-      } else {
+      } else if (gij < 0.0) {
         fluxLimitingFactors.coeffRef(indI, indJ) =
             std::min(betaMinus(indI), betaPlus(indJ));
       }
@@ -3140,9 +3179,9 @@ void FEMALEMethod::FCTProjection() {
   z.resize(nProj);
   z.setZero();
   FCTCoeffPlus.resize(nProj);
-  FCTCoeffPlus.setZero();
+  FCTCoeffPlus.setOnes();
   FCTCoeffMinus.resize(nProj);
-  FCTCoeffMinus.setZero();
+  FCTCoeffMinus.setOnes();
   localMassMatrix.resize(nProj, nProj);
   localMassMatrix.setZero();
   localMassMatrix_inv.resize(nProj, nProj);
@@ -3208,8 +3247,12 @@ void FEMALEMethod::FCTProjection() {
     deltaxyPlus /= localMassMatrixLumped.coeff(i, i);
     deltaxyMinus /= localMassMatrixLumped.coeff(i, i);
 
-    FCTCoeffPlus(i) = std::min(1.0, deltaxyMax / deltaxyPlus);
-    FCTCoeffMinus(i) = std::min(1.0, deltaxyMin / deltaxyMinus);
+    if (deltaxyPlus != 0.0) {
+      FCTCoeffPlus(i) = std::min(1.0, deltaxyMax / deltaxyPlus);
+    }
+    if (deltaxyMinus != 0.0) {
+      FCTCoeffMinus(i) = std::min(1.0, deltaxyMin / deltaxyMinus);
+    }
   }
   for (size_t i = 0; i < nProj; i++) {
     for (size_t j = 0; j < nProj; j++) {
@@ -3231,6 +3274,6 @@ void FEMALEMethod::FCTProjection() {
 
       sum += alphaij * fij;
     }
-    xyOut(i) += sum;
+    xyOut(i) += sum / localMassMatrixLumped.coeff(i, i);
   }
 }
