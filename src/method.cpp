@@ -741,10 +741,10 @@ FEMALEMethod::quadForceCell(size_t celli, size_t cellj,
           (order + 1) * (order + 1), order * order)};
 
   const size_t indMin = getLegendreStartIndex(quadOrder);
-  for (size_t i = 0; i < quadOrder; i++) {
-    for (size_t j = 0; j < quadOrder; j++) {
+  for (size_t quadi = 0; quadi < quadOrder; quadi++) {
+    for (size_t quadj = 0; quadj < quadOrder; quadj++) {
       Eigen::Matrix<double, 2, 2> jacobian =
-          getCellJacobian(celli, cellj, i, j, x, y);
+          getCellJacobian(celli, cellj, quadi, quadj, x, y);
       Eigen::JacobiSVD<Eigen::Matrix<double, 2, 2>> svd(jacobian);
       double hmin = svd.singularValues().minCoeff() / order;
       double soundSpeed = 0.0;
@@ -754,7 +754,7 @@ FEMALEMethod::quadForceCell(size_t celli, size_t cellj,
 
       Eigen::Matrix<double, 2, 2> stressTensor =
           calcStressTensor(u, v, e, jacobian, soundSpeed, rhoLocal,
-                           maxViscosityCoeff, celli, cellj, i, j);
+                           maxViscosityCoeff, celli, cellj, quadi, quadj);
 
       for (size_t basisKinematic = 0;
            basisKinematic < (order + 1) * (order + 1); basisKinematic++) {
@@ -763,24 +763,26 @@ FEMALEMethod::quadForceCell(size_t celli, size_t cellj,
           double basisKinematic2Ddx =
               kinematicBasis1DdxQuadValues[(basisKinematic % (order + 1)) *
                                                quadOrder +
-                                           i] *
+                                           quadi] *
               kinematicBasis1DQuadValues[(basisKinematic / (order + 1)) *
                                              quadOrder +
-                                         j];
+                                         quadj];
           double basisKinematic2Ddy =
               kinematicBasis1DQuadValues[(basisKinematic % (order + 1)) *
                                              quadOrder +
-                                         i] *
+                                         quadi] *
               kinematicBasis1DdxQuadValues[(basisKinematic / (order + 1)) *
                                                quadOrder +
-                                           j];
+                                           quadj];
           Eigen::Matrix<double, 2, 2> gradBasisx{
               {basisKinematic2Ddx, basisKinematic2Ddy}, {0.0, 0.0}};
           Eigen::Matrix<double, 2, 2> gradBasisy{
               {0.0, 0.0}, {basisKinematic2Ddx, basisKinematic2Ddy}};
           double thermobasis =
-              thermoBasis1DQuadValues[(basisThermo % order) * quadOrder + i] *
-              thermoBasis1DQuadValues[(basisThermo / order) * quadOrder + j];
+              thermoBasis1DQuadValues[(basisThermo % order) * quadOrder +
+                                      quadi] *
+              thermoBasis1DQuadValues[(basisThermo / order) * quadOrder +
+                                      quadj];
 
           Eigen::Matrix<double, 2, 2> rhsx = jacobian.inverse();
           Eigen::Matrix<double, 2, 2> rhsy = rhsx;
@@ -802,10 +804,12 @@ FEMALEMethod::quadForceCell(size_t celli, size_t cellj,
           //               stressTensor(1, 0) * rhsy(1, 0) +
           //               stressTensor(1, 1) * rhsy(1, 1));
           output[0](basisKinematic, basisThermo) +=
-              legendreWeights[indMin + i] * legendreWeights[indMin + j] *
+              legendreWeights[indMin + quadi] *
+              legendreWeights[indMin + quadj] *
               (stressTensor.transpose() * rhsx).trace();
           output[1](basisKinematic, basisThermo) +=
-              legendreWeights[indMin + i] * legendreWeights[indMin + j] *
+              legendreWeights[indMin + quadi] *
+              legendreWeights[indMin + quadj] *
               (stressTensor.transpose() * rhsy).trace();
         }
       }
@@ -1429,6 +1433,7 @@ void FEMALEMethod::calcKinematicMassMatrix() {
   Mky.reserve(Eigen::VectorXi::Constant(
       Nk, (2 * order + 1) *
               (2 * order + 1)));  // reserve maximum possible space for each row
+#pragma omp parallel for
   for (size_t celli = 0; celli < xSize; celli++) {
     for (size_t cellj = 0; cellj < ySize; cellj++) {
       Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> quadResult =
@@ -1451,6 +1456,7 @@ void FEMALEMethod::calcKinematicMassMatrix() {
 }
 
 void FEMALEMethod::calcThermoMassMatrix() {
+#pragma omp parallel for
   for (size_t celli = 0; celli < xSize; celli++) {
     for (size_t cellj = 0; cellj < ySize; cellj++) {
       Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> MtCell =
@@ -1525,7 +1531,7 @@ Eigen::Matrix<double, 2, 2> FEMALEMethod::calcStressTensor(
       getCellJacobian(celli, cellj, i, j, xInitial, yInitial);
 
   // double rhoInitial = rhoInitializer(xij, yij);
-  const size_t indRho = getQuadIndexFromCell(celli, cellj, i * quadOrder + j);
+  const size_t indRho = getQuadIndexFromCell(celli, cellj, j * quadOrder + i);
   double rhoInitial = rhoQuad(indRho);
   rhoLocal = rhoInitial *
              std::abs(jacobianInitial.determinant() / jacobian.determinant());
@@ -1792,94 +1798,45 @@ void FEMALEMethod::optimizeMesh() {
   xOptimal = x;
   yOptimal = y;
 
-  // DECOMPOSITION A = D + L + U
-  // TEST with 0.5 * eps to account for multiple dimensions
-  // Eigen::SparseMatrix<double> Ax = eps * vectorLaplacianX + vectorMassX;
-  // Eigen::SparseMatrix<double> Ay = eps * vectorLaplacianY + vectorMassY;
-  // Ay.makeCompressed();
-  // Ax.makeCompressed();
+  for (size_t celli = 0; celli < xSize; celli++) {
+    for (size_t cellj = 0; cellj < ySize; cellj++) {
+      for (size_t i = 0; i < (order + 1) * (order + 1); i++) {
+        if (celli == 0 && i % (order + 1) == 0) {
+          continue;
+        }
+        if (celli == xSize - 1 && i % (order + 1) == order) {
+          continue;
+        }
+        if (cellj == 0 && i / (order + 1) == 0) {
+          continue;
+        }
+        if (cellj == ySize - 1 && i / (order + 1) == order) {
+          continue;
+        }
+        const size_t indI = getKinematicIndexFromCell(celli, cellj, i);
+        assert(indI >= order * ySize + 1);
+        const size_t indLeft = indI - order * ySize - 1;
+        const size_t indTop = indI + 1;
+        const size_t indRight = indI + order * ySize + 1;
+        const size_t indBottom = indI - 1;
 
-  // Eigen::SparseMatrix<double> Dx_inv(Nk, Nk);
-  // Eigen::SparseMatrix<double> Dy_inv(Nk, Nk);
-  // Dx_inv.reserve(Eigen::VectorXi::Constant(Nk, 1));
-  // Dy_inv.reserve(Eigen::VectorXi::Constant(Nk, 1));
-  // for (size_t i = 0; i < Nk; i++) {
-  //   const double Axii = Ax.coeff(i, i);
-  //   const double Ayii = Ay.coeff(i, i);
-  //   Dx_inv.insert(i, i) = 1.0 / Axii;
-  //   Dy_inv.insert(i, i) = 1.0 / Ayii;
-  // }
+        const double xI = x(indI);
+        const double xLeft = x(indLeft);
+        const double xTop = x(indTop);
+        const double xRight = x(indRight);
+        const double xBottom = x(indBottom);
 
-  // Eigen::SparseMatrix<double> LUx = Ax;
-  // Eigen::SparseMatrix<double> LUy = Ay;
-  // for (size_t i = 0; i < Nk; i++) {
-  //   LUx.coeffRef(i, i) = 0.0;
-  //   LUy.coeffRef(i, i) = 0.0;
-  // }
-  //
-  // Eigen::Matrix<double, Eigen::Dynamic, 1> bx = vectorMassX * x;
-  // Eigen::Matrix<double, Eigen::Dynamic, 1> by = vectorMassY * y;
-  //
-  // constexpr size_t nSteps = 100;
-  // for (size_t iter = 0; iter < nSteps; iter++) {
-  //   // xTmp.swap(xOptimal);
-  //   // yTmp.swap(yOptimal);
-  //   // xOptimal = Dx_inv * (bx - LUx * xTmp);
-  //   // yOptimal = Dy_inv * (by - LUy * yTmp);
-  //   Eigen::VectorXd rhsx = bx - LUx * xOptimal;
-  //   Eigen::VectorXd rhsy = by - LUy * yOptimal;
-  //   for (size_t i = 0; i < Nk; i++) {
-  //     const double Axii = Ax.coeff(i, i);
-  //     const double Ayii = Ay.coeff(i, i);
-  //     if (Axii != 0.0) {
-  //       xOptimal(i) = rhsx(i) / Axii;
-  //     }
-  //     if (Ayii != 0.0) {
-  //       yOptimal(i) = rhsy(i) / Ayii;
-  //     }
-  //   }
-  // }
+        const double yI = y(indI);
+        const double yLeft = y(indLeft);
+        const double yTop = y(indTop);
+        const double yRight = y(indRight);
+        const double yBottom = y(indBottom);
 
-  // for (size_t celli = 0; celli < xSize; celli++) {
-  //   for (size_t cellj = 0; cellj < ySize; cellj++) {
-  //     for (size_t i = 0; i < (order + 1) * (order + 1); i++) {
-  //       if (celli == 0 && i % (order + 1) == 0) {
-  //         continue;
-  //       }
-  //       if (celli == xSize - 1 && i % (order + 1) == order) {
-  //         continue;
-  //       }
-  //       if (cellj == 0 && i / (order + 1) == 0) {
-  //         continue;
-  //       }
-  //       if (cellj == ySize - 1 && i / (order + 1) == order) {
-  //         continue;
-  //       }
-  //       const size_t indI = getKinematicIndexFromCell(celli, cellj, i);
-  //       assert(indI >= order * ySize + 1);
-  //       const size_t indLeft = indI - order * ySize - 1;
-  //       const size_t indTop = indI + 1;
-  //       const size_t indRight = indI + order * ySize + 1;
-  //       const size_t indBottom = indI - 1;
-  //
-  //       const double xI = x(indI);
-  //       const double xLeft = x(indLeft);
-  //       const double xTop = x(indTop);
-  //       const double xRight = x(indRight);
-  //       const double xBottom = x(indBottom);
-  //
-  //       const double yI = y(indI);
-  //       const double yLeft = y(indLeft);
-  //       const double yTop = y(indTop);
-  //       const double yRight = y(indRight);
-  //       const double yBottom = y(indBottom);
-  //
-  //       xOptimal(indI) = 0.125 * (4.0 * xI + xLeft + xTop + xRight +
-  //       xBottom); yOptimal(indI) = 0.125 * (4.0 * yI + yLeft + yTop + yRight
-  //       + yBottom);
-  //     }
-  //   }
-  // }
+        xOptimal(indI) = 0.125 * (4.0 * xI + xLeft + xTop + xRight + xBottom);
+        yOptimal(indI) = 0.125 * (4.0 * yI + yLeft + yTop + yRight + yBottom);
+      }
+    }
+  }
 
   uMesh = xOptimal - x;
   vMesh = yOptimal - y;
