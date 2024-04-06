@@ -192,6 +192,7 @@ class FEMALEMethod : public Method {
   void transitionEToLagrange();
   void preEToLagrange(size_t celli, size_t cellj);
   void postEToLagrange(size_t celli, size_t cellj);
+  void postTransitionRhoToLagrange();
 
   void calcTau(double hmin, double soundSpeed, double rhoLocal,
                double maxViscosityCoeff);
@@ -248,7 +249,7 @@ class FEMALEMethod : public Method {
   const size_t Nk;  // Number kinematic space points
   const size_t Nt;  // Number of thermodynamic space points
   const size_t Na;  // Number of advection space points
-  const size_t remapFrequency = 1;
+  const size_t remapFrequency = 10;
   const double q1 = 0.5;
   const double q2 = 2.0;
   const double alpha = 0.5;

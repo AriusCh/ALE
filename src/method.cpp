@@ -1798,45 +1798,46 @@ void FEMALEMethod::optimizeMesh() {
   xOptimal = x;
   yOptimal = y;
 
-  for (size_t celli = 0; celli < xSize; celli++) {
-    for (size_t cellj = 0; cellj < ySize; cellj++) {
-      for (size_t i = 0; i < (order + 1) * (order + 1); i++) {
-        if (celli == 0 && i % (order + 1) == 0) {
-          continue;
-        }
-        if (celli == xSize - 1 && i % (order + 1) == order) {
-          continue;
-        }
-        if (cellj == 0 && i / (order + 1) == 0) {
-          continue;
-        }
-        if (cellj == ySize - 1 && i / (order + 1) == order) {
-          continue;
-        }
-        const size_t indI = getKinematicIndexFromCell(celli, cellj, i);
-        assert(indI >= order * ySize + 1);
-        const size_t indLeft = indI - order * ySize - 1;
-        const size_t indTop = indI + 1;
-        const size_t indRight = indI + order * ySize + 1;
-        const size_t indBottom = indI - 1;
-
-        const double xI = x(indI);
-        const double xLeft = x(indLeft);
-        const double xTop = x(indTop);
-        const double xRight = x(indRight);
-        const double xBottom = x(indBottom);
-
-        const double yI = y(indI);
-        const double yLeft = y(indLeft);
-        const double yTop = y(indTop);
-        const double yRight = y(indRight);
-        const double yBottom = y(indBottom);
-
-        xOptimal(indI) = 0.125 * (4.0 * xI + xLeft + xTop + xRight + xBottom);
-        yOptimal(indI) = 0.125 * (4.0 * yI + yLeft + yTop + yRight + yBottom);
-      }
-    }
-  }
+  // for (size_t celli = 0; celli < xSize; celli++) {
+  //   for (size_t cellj = 0; cellj < ySize; cellj++) {
+  //     for (size_t i = 0; i < (order + 1) * (order + 1); i++) {
+  //       if (celli == 0 && i % (order + 1) == 0) {
+  //         continue;
+  //       }
+  //       if (celli == xSize - 1 && i % (order + 1) == order) {
+  //         continue;
+  //       }
+  //       if (cellj == 0 && i / (order + 1) == 0) {
+  //         continue;
+  //       }
+  //       if (cellj == ySize - 1 && i / (order + 1) == order) {
+  //         continue;
+  //       }
+  //       const size_t indI = getKinematicIndexFromCell(celli, cellj, i);
+  //       assert(indI >= order * ySize + 1);
+  //       const size_t indLeft = indI - order * ySize - 1;
+  //       const size_t indTop = indI + 1;
+  //       const size_t indRight = indI + order * ySize + 1;
+  //       const size_t indBottom = indI - 1;
+  //
+  //       const double xI = x(indI);
+  //       const double xLeft = x(indLeft);
+  //       const double xTop = x(indTop);
+  //       const double xRight = x(indRight);
+  //       const double xBottom = x(indBottom);
+  //
+  //       const double yI = y(indI);
+  //       const double yLeft = y(indLeft);
+  //       const double yTop = y(indTop);
+  //       const double yRight = y(indRight);
+  //       const double yBottom = y(indBottom);
+  //
+  //       xOptimal(indI) = 0.125 * (4.0 * xI + xLeft + xTop + xRight +
+  //       xBottom); yOptimal(indI) = 0.125 * (4.0 * yI + yLeft + yTop + yRight
+  //       + yBottom);
+  //     }
+  //   }
+  // }
 
   uMesh = xOptimal - x;
   vMesh = yOptimal - y;
@@ -1872,9 +1873,6 @@ void FEMALEMethod::preTransitionRhoToRemap() {
 void FEMALEMethod::transitionRhoToRemap() {
   for (size_t celli = 0; celli < xSize; celli++) {
     for (size_t cellj = 0; cellj < ySize; cellj++) {
-      if (celli == 50) {
-        auto j = 0;
-      }
       preRhoToRemap(celli, cellj);
       FCTProjection();
       postRhoToRemap(celli, cellj);
@@ -2023,8 +2021,7 @@ void FEMALEMethod::transitionToLagrange() {
   calcKinematicMassMatrix();
   calcThermoMassMatrix();
   initSolvers();
-  xInitial = x;
-  yInitial = y;
+  postTransitionRhoToLagrange();
 }
 
 void FEMALEMethod::transitionRhoToLagrange() {
@@ -2124,6 +2121,27 @@ void FEMALEMethod::postEToLagrange(size_t celli, size_t cellj) {
   for (size_t k = 0; k < nProj; k++) {
     const size_t indK = getThermodynamicIndexFromCell(celli, cellj, k);
     e(indK) = xyOut(k);
+  }
+}
+
+void FEMALEMethod::postTransitionRhoToLagrange() {
+  for (size_t celli = 0; celli < xSize; celli++) {
+    for (size_t cellj = 0; cellj < ySize; cellj++) {
+      for (size_t quad = 0; quad < quadOrder * quadOrder; quad++) {
+        const size_t quadi = quad % quadOrder;
+        const size_t quadj = quad / quadOrder;
+
+        Eigen::Matrix<double, 2, 2> jacobian =
+            getCellJacobian(celli, cellj, quadi, quadj, x, y);
+        const double jacDet = std::abs(jacobian.determinant());
+        jacobian =
+            getCellJacobian(celli, cellj, quadi, quadj, xInitial, yInitial);
+        const double jacDetInitial = std::abs(jacobian.determinant());
+
+        const size_t indRho = getQuadIndexFromCell(celli, cellj, quad);
+        rhoQuad(indRho) *= jacDet / jacDetInitial;
+      }
+    }
   }
 }
 

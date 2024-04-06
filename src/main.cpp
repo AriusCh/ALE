@@ -6,9 +6,9 @@
 #include "simulation.hpp"
 
 int main([[maybe_unused]] int argc, [[maybe_unused]] char *argv[]) {
-  const Problem &problem = Problems::blastWave2D;
+  const Problem &problem = Problems::sodTest;
   std::unique_ptr<FEMALEMethod> mtd =
-      std::make_unique<FEMALEMethod>("1-50-ale", problem, 50, 50, 1);
+      std::make_unique<FEMALEMethod>("2-100-ale", problem, 100, 1, 2);
   Simulation sim(std::move(mtd));
   sim.run();
 
