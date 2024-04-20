@@ -1922,6 +1922,7 @@ void FEMALEMethod::preRhoToRemap(size_t celli, size_t cellj) {
   }
   double rhoMin = getMinRhoFromCellAndNeighbours(celli, cellj);
   double rhoMax = getMaxRhoFromCellAndNeighbours(celli, cellj);
+  assert(rhoMin <= rhoMax);
   ymin = Eigen::VectorXd::Constant(nProj, rhoMin);
   ymax = Eigen::VectorXd::Constant(nProj, rhoMax);
 }
@@ -2022,6 +2023,8 @@ void FEMALEMethod::transitionToLagrange() {
   calcThermoMassMatrix();
   initSolvers();
   postTransitionRhoToLagrange();
+  // xInitial = x;
+  // yInitial = y;
 }
 
 void FEMALEMethod::transitionRhoToLagrange() {
@@ -2820,11 +2823,14 @@ void FEMALEMethod::remapStepRhoFlux() {
     for (size_t cellj = 0; cellj < ySize; cellj++) {
       for (size_t i = 0; i < (order + 1) * (order + 1); i++) {
         const size_t indI = getAdvectionIndexFromCell(celli, cellj, i);
-        const double mi = Mlumped.coeff(i, i);
+        const double mi = Mlumped.coeff(indI, indI);
         const double dRhoLowi = rhoRemapLow(indI) - rhoRemapAvg(indI);
         for (size_t j = 0; j < (order + 1) * (order + 1); j++) {
           const size_t indJ = getAdvectionIndexFromCell(celli, cellj, j);
-          const double mj = Mlumped.coeff(j, j);
+          if (indI == indJ) {
+            continue;
+          }
+          const double mj = Mlumped.coeff(indJ, indJ);
           const double dRhoLowj = rhoRemapLow(indJ) - rhoRemapAvg(indJ);
 
           const double fluxValue = (mi * dRhoLowi - mj * dRhoLowj) / nInCell;
@@ -3007,11 +3013,11 @@ void FEMALEMethod::remapStepRhoEFlux() {
     for (size_t cellj = 0; cellj < ySize; cellj++) {
       for (size_t i = 0; i < (order + 1) * (order + 1); i++) {
         const size_t indI = getAdvectionIndexFromCell(celli, cellj, i);
-        const double mi = Mlumped.coeff(i, i);
+        const double mi = Mlumped.coeff(indI, indI);
         const double dRhoELowi = rhoERemapLow(indI) - rhoERemapAvg(indI);
         for (size_t j = 0; j < (order + 1) * (order + 1); j++) {
           const size_t indJ = getAdvectionIndexFromCell(celli, cellj, j);
-          const double mj = Mlumped.coeff(j, j);
+          const double mj = Mlumped.coeff(indJ, indJ);
           const double dRhoELowj = rhoERemapLow(indJ) - rhoERemapAvg(indJ);
 
           const double fluxValue = (mi * dRhoELowi - mj * dRhoELowj) / nInCell;
