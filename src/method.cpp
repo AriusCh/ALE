@@ -6,9 +6,13 @@
 
 #include "nodes.hpp"
 
-FEMALEMethod::FEMALEMethod(const std::string &name, const Problem &problem_,
-                           size_t xSize_, size_t ySize_, size_t order_)
-    : Method(name, problem_),
+FEMALEMethod::FEMALEMethod(const Problem &problem_, size_t xSize_,
+                           size_t ySize_, size_t order_, bool bRemapEnabled_,
+                           size_t remapFrequency_)
+    : Method(std::format(
+                 "{}-{}x{}{}", order_, xSize_, ySize_,
+                 bRemapEnabled_ ? std::format("-ale-{}", remapFrequency_) : ""),
+             problem_),
       xSize(xSize_),
       ySize(ySize_),
       order(order_),
@@ -16,6 +20,8 @@ FEMALEMethod::FEMALEMethod(const std::string &name, const Problem &problem_,
       Nk((order * xSize + 1) * (order * ySize + 1)),
       Nt((order * xSize) * (order * ySize)),
       Na((order + 1) * xSize * (order + 1) * ySize),
+      bRemapEnabled(bRemapEnabled_),
+      remapFrequency(remapFrequency_),
       x(Nk),
       y(Nk),
       u(Nk),
@@ -87,7 +93,7 @@ FEMALEMethod::FEMALEMethod(const std::string &name, const Problem &problem_,
 
 void FEMALEMethod::calc() {
   RK2step();
-  if (++iteration % remapFrequency == 0) {
+  if (bRemapEnabled && ++iteration % remapFrequency == 0) {
     remap();
   }
 }
@@ -385,7 +391,7 @@ Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> FEMALEMethod::quadCellMv(
     double rhoLocal = 0.0;
     for (size_t k = 0; k < (order + 1) * (order + 1); k++) {
       const size_t indK = getAdvectionIndexFromCell(celli, cellj, k);
-      const size_t rhoK = rhoRemap(indK);
+      const double rhoK = rhoRemap(indK);
       const double basisk2D =
           advectionBasis1DQuadValues[(k % (order + 1)) * quadOrder + quadi] *
           advectionBasis1DQuadValues[(k / (order + 1)) * quadOrder + quadj];
@@ -394,13 +400,13 @@ Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> FEMALEMethod::quadCellMv(
     }
 
     for (size_t basisi = 0; basisi < (order + 1) * (order + 1); basisi++) {
-      double basisiValue =
+      const double basisiValue =
           kinematicBasis1DQuadValues[(basisi % (order + 1)) * quadOrder +
                                      quadi] *
           kinematicBasis1DQuadValues[(basisi / (order + 1)) * quadOrder +
                                      quadj];
       for (size_t basisj = 0; basisj < (order + 1) * (order + 1); basisj++) {
-        double basisjValue =
+        const double basisjValue =
             kinematicBasis1DQuadValues[(basisj % (order + 1)) * quadOrder +
                                        quadi] *
             kinematicBasis1DQuadValues[(basisj / (order + 1)) * quadOrder +
@@ -467,13 +473,14 @@ Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> FEMALEMethod::quadCellKv(
     for (size_t quadj = 0; quadj < quadOrder; quadj++) {
       Eigen::Matrix<double, 2, 2> jacobian =
           getCellJacobian(celli, cellj, quadi, quadj, x, y);
+      Eigen::Matrix<double, 2, 2> jacobianInv = jacobian.inverse();
       const double jacDet = std::abs(jacobian.determinant());
 
       double rhoLocal = 0.0;
       for (size_t k = 0; k < (order + 1) * (order + 1); k++) {
         const size_t indK = getAdvectionIndexFromCell(celli, cellj, k);
-        const size_t rhoK = rhoRemap(indK);
-        const size_t basisk2D =
+        const double rhoK = rhoRemap(indK);
+        const double basisk2D =
             advectionBasis1DQuadValues[(k % (order + 1)) * quadOrder + quadi] *
             advectionBasis1DQuadValues[(k / (order + 1)) * quadOrder + quadj];
 
@@ -483,7 +490,7 @@ Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> FEMALEMethod::quadCellKv(
       double uMeshLocal = 0.0;
       double vMeshLocal = 0.0;
       for (size_t k = 0; k < (order + 1) * (order + 1); k++) {
-        size_t indK = getKinematicIndexFromCell(celli, cellj, k);
+        const size_t indK = getKinematicIndexFromCell(celli, cellj, k);
         const double uk = uMesh(indK);
         const double vk = vMesh(indK);
 
@@ -513,7 +520,10 @@ Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> FEMALEMethod::quadCellKv(
               kinematicBasis1DdxQuadValues[(basisj / (order + 1)) * quadOrder +
                                            quadj];
 
-          double dotProd = uMeshLocal * basisj2Ddx + vMeshLocal * basisj2Ddy;
+          Eigen::Vector2d basisjGrad =
+              jacobianInv.transpose() * Eigen::Vector2d{basisj2Ddx, basisj2Ddy};
+          const double dotProd =
+              uMeshLocal * basisjGrad(0) + vMeshLocal * basisjGrad(1);
 
           output(basisi, basisj) += legendreWeights[indMin + quadi] *
                                     legendreWeights[indMin + quadj] * rhoLocal *
@@ -541,6 +551,7 @@ Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> FEMALEMethod::quadCellK(
 
     Eigen::Matrix<double, 2, 2> jacobian =
         getCellJacobian(celli, cellj, quadi, quadj, x, y);
+    Eigen::Matrix<double, 2, 2> jacobianInv = jacobian.inverse();
     const double jacDet = std::abs(jacobian.determinant());
 
     double uMeshLocal = 0.0;
@@ -577,7 +588,10 @@ Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> FEMALEMethod::quadCellK(
             advectionBasis1DdxQuadValues[(basisj / (order + 1)) * quadOrder +
                                          quadj];
 
-        double dotProd = uMeshLocal * basisj2Ddx + vMeshLocal * basisj2Ddy;
+        Eigen::Vector2d basisjGrad =
+            jacobianInv.transpose() * Eigen::Vector2d{basisj2Ddx, basisj2Ddy};
+        const double dotProd =
+            uMeshLocal * basisjGrad(0) + vMeshLocal * basisjGrad(1);
 
         output(basisi, basisj) += legendreWeights[indMin + quadi] *
                                   legendreWeights[indMin + quadj] * basisi2D *
@@ -1293,14 +1307,16 @@ void FEMALEMethod::initOutputBasisValues() {
 void FEMALEMethod::initRhoValues() {
   const double celldx = (problem.xmax - problem.xmin) / xSize;
   const double celldy = (problem.ymax - problem.ymin) / ySize;
-  const size_t indMin = getLegendreStartIndex(quadOrder);
+  // const size_t indMin = getLegendreStartIndex(quadOrder);
   for (size_t celli = 0; celli < xSize; celli++) {
     for (size_t cellj = 0; cellj < ySize; cellj++) {
       for (size_t k = 0; k < quadOrder * quadOrder; k++) {
-        double xlocal = legendreAbscissas[indMin + k % quadOrder];
-        double ylocal = legendreAbscissas[indMin + k / quadOrder];
-        double xij = problem.xmin + celldx * (celli + xlocal);
-        double yij = problem.ymin + celldy * (cellj + ylocal);
+        // double xlocal = legendreAbscissas[indMin + k % quadOrder];
+        // double ylocal = legendreAbscissas[indMin + k / quadOrder];
+        const double xlocal = 0.5;
+        const double ylocal = 0.5;
+        const double xij = problem.xmin + celldx * (celli + xlocal);
+        const double yij = problem.ymin + celldy * (cellj + ylocal);
 
         const size_t indRho = getQuadIndexFromCell(celli, cellj, k);
         rhoQuad(indRho) = problem.rhoInitializer(xij, yij);
@@ -1324,13 +1340,15 @@ void FEMALEMethod::initKinematicVectors() {
   }
   for (size_t i = 0; i < imax; i++) {
     for (size_t j = 0; j < jmax; j++) {
-      size_t indMin = getLobattoStartIndex(order);
-      size_t lobattoxIndex = indMin + i % order;
-      size_t lobattoyIndex = indMin + j % order;
-      double xij = problem.xmin + celldx * (static_cast<double>(i / order) +
-                                            lobattoAbscissas[lobattoxIndex]);
-      double yij = problem.ymin + celldy * (static_cast<double>(j / order) +
-                                            lobattoAbscissas[lobattoyIndex]);
+      const size_t indMin = getLobattoStartIndex(order);
+      const size_t lobattoxIndex = indMin + i % order;
+      const size_t lobattoyIndex = indMin + j % order;
+      const double xij =
+          problem.xmin + celldx * (static_cast<double>(i / order) +
+                                   lobattoAbscissas[lobattoxIndex]);
+      const double yij =
+          problem.ymin + celldy * (static_cast<double>(j / order) +
+                                   lobattoAbscissas[lobattoyIndex]);
       x(i * jmax + j) = xij;
       xInitial(i * jmax + j) = xij;
       y(i * jmax + j) = yij;
@@ -1706,8 +1724,8 @@ void FEMALEMethod::calcKv(const Eigen::Matrix<double, Eigen::Dynamic, 1> &x,
 
       for (size_t i = 0; i < (order + 1) * (order + 1); i++) {
         for (size_t j = 0; j < (order + 1) * (order + 1); j++) {
-          size_t indI = getKinematicIndexFromCell(celli, cellj, i);
-          size_t indJ = getKinematicIndexFromCell(celli, cellj, j);
+          const size_t indI = getKinematicIndexFromCell(celli, cellj, i);
+          const size_t indJ = getKinematicIndexFromCell(celli, cellj, j);
 
           Kv.coeffRef(indI, indJ) += cellKv(i, j);
         }
@@ -1795,49 +1813,49 @@ void FEMALEMethod::calcAuxMat() {
 }
 
 void FEMALEMethod::optimizeMesh() {
-  xOptimal = x;
-  yOptimal = y;
+  xOptimal = xInitial;
+  yOptimal = yInitial;
 
-  // for (size_t celli = 0; celli < xSize; celli++) {
-  //   for (size_t cellj = 0; cellj < ySize; cellj++) {
-  //     for (size_t i = 0; i < (order + 1) * (order + 1); i++) {
-  //       if (celli == 0 && i % (order + 1) == 0) {
-  //         continue;
-  //       }
-  //       if (celli == xSize - 1 && i % (order + 1) == order) {
-  //         continue;
-  //       }
-  //       if (cellj == 0 && i / (order + 1) == 0) {
-  //         continue;
-  //       }
-  //       if (cellj == ySize - 1 && i / (order + 1) == order) {
-  //         continue;
-  //       }
-  //       const size_t indI = getKinematicIndexFromCell(celli, cellj, i);
-  //       assert(indI >= order * ySize + 1);
-  //       const size_t indLeft = indI - order * ySize - 1;
-  //       const size_t indTop = indI + 1;
-  //       const size_t indRight = indI + order * ySize + 1;
-  //       const size_t indBottom = indI - 1;
-  //
-  //       const double xI = x(indI);
-  //       const double xLeft = x(indLeft);
-  //       const double xTop = x(indTop);
-  //       const double xRight = x(indRight);
-  //       const double xBottom = x(indBottom);
-  //
-  //       const double yI = y(indI);
-  //       const double yLeft = y(indLeft);
-  //       const double yTop = y(indTop);
-  //       const double yRight = y(indRight);
-  //       const double yBottom = y(indBottom);
-  //
-  //       xOptimal(indI) = 0.125 * (4.0 * xI + xLeft + xTop + xRight +
-  //       xBottom); yOptimal(indI) = 0.125 * (4.0 * yI + yLeft + yTop + yRight
-  //       + yBottom);
-  //     }
-  //   }
-  // }
+#pragma omp parallel for
+  for (size_t celli = 0; celli < xSize; celli++) {
+    for (size_t cellj = 0; cellj < ySize; cellj++) {
+      for (size_t i = 0; i < (order + 1) * (order + 1); i++) {
+        if (celli == 0 && i % (order + 1) == 0) {
+          continue;
+        }
+        if (celli == xSize - 1 && i % (order + 1) == order) {
+          continue;
+        }
+        if (cellj == 0 && i / (order + 1) == 0) {
+          continue;
+        }
+        if (cellj == ySize - 1 && i / (order + 1) == order) {
+          continue;
+        }
+        const size_t indI = getKinematicIndexFromCell(celli, cellj, i);
+        assert(indI >= order * ySize + 1);
+        const size_t indLeft = indI - order * ySize - 1;
+        const size_t indTop = indI + 1;
+        const size_t indRight = indI + order * ySize + 1;
+        const size_t indBottom = indI - 1;
+
+        const double xI = x(indI);
+        const double xLeft = x(indLeft);
+        const double xTop = x(indTop);
+        const double xRight = x(indRight);
+        const double xBottom = x(indBottom);
+
+        const double yI = y(indI);
+        const double yLeft = y(indLeft);
+        const double yTop = y(indTop);
+        const double yRight = y(indRight);
+        const double yBottom = y(indBottom);
+
+        xOptimal(indI) = 0.125 * (4.0 * xI + xLeft + xTop + xRight + xBottom);
+        yOptimal(indI) = 0.125 * (4.0 * yI + yLeft + yTop + yRight + yBottom);
+      }
+    }
+  }
 
   uMesh = xOptimal - x;
   vMesh = yOptimal - y;
@@ -1850,6 +1868,7 @@ void FEMALEMethod::transitionToRemap() {
 }
 
 void FEMALEMethod::preTransitionRhoToRemap() {
+#pragma omp parallel for
   for (size_t celli = 0; celli < xSize; celli++) {
     for (size_t cellj = 0; cellj < ySize; cellj++) {
       for (size_t quad = 0; quad < quadOrder * quadOrder; quad++) {
@@ -1929,7 +1948,7 @@ void FEMALEMethod::preRhoToRemap(size_t celli, size_t cellj) {
 
 void FEMALEMethod::postRhoToRemap(size_t celli, size_t cellj) {
   const size_t nProj = (order + 1) * (order + 1);
-  assert(xyOut.size() == nProj);
+  assert(static_cast<size_t>(xyOut.size()) == nProj);
   for (size_t k = 0; k < nProj; k++) {
     const size_t indRho = getAdvectionIndexFromCell(celli, cellj, k);
     rhoRemap(indRho) = xyOut(k);
@@ -2009,7 +2028,7 @@ void FEMALEMethod::preEToRemap(size_t celli, size_t cellj) {
 
 void FEMALEMethod::postEToRemap(size_t celli, size_t cellj) {
   const size_t nProj = (order + 1) * (order + 1);
-  assert(xyOut.size() == nProj);
+  assert(static_cast<size_t>(xyOut.size()) == nProj);
   for (size_t k = 0; k < nProj; k++) {
     const size_t indRhoE = getAdvectionIndexFromCell(celli, cellj, k);
     rhoERemap(indRhoE) = xyOut(k);
@@ -2169,7 +2188,7 @@ void FEMALEMethod::calcRemapTau() {
     if (Kii == 0.0) {
       continue;
     }
-    assert(Mii != 0.0);
+    assert(Mii > 0.0);
     assert(Kii <= 1e-16);
     const double dtTmp = remapCFL * std::abs(Mii / Kii);
     assert(dtTmp > 0.0);
@@ -2714,6 +2733,7 @@ void FEMALEMethod::remapStep() {
   assert(MvSolver.info() == Eigen::Success);
 
   remapStepRhoPrepare();
+#pragma omp parallel for
   for (size_t celli = 0; celli < xSize; celli++) {
     for (size_t cellj = 0; cellj < ySize; cellj++) {
       remapStepRhoMinMaxCell(celli, cellj);
@@ -2724,6 +2744,7 @@ void FEMALEMethod::remapStep() {
   remapStepRhoFinal();
 
   remapStepRhoEPrepare();
+#pragma omp parallel for
   for (size_t celli = 0; celli < xSize; celli++) {
     for (size_t cellj = 0; cellj < ySize; cellj++) {
       remapStepRhoEMinMaxCell(celli, cellj);
@@ -2740,12 +2761,15 @@ void FEMALEMethod::remapStep() {
 
 void FEMALEMethod::remapStepRhoPrepare() {
   rhoRemapHigh = K * rhoRemap;
-  rhoRemapHigh *= remapDt;
-  rhoRemapHigh = MInv * rhoRemapHigh;
-  rhoRemapHigh += rhoRemap;
   rhoRemapLow = Kupwinded * rhoRemap;
-  rhoRemapLow *= remapDt;
+
+  rhoRemapHigh = MInv * rhoRemapHigh;
   rhoRemapLow = MlumpedInv * rhoRemapLow;
+
+  rhoRemapHigh *= remapDt;
+  rhoRemapLow *= remapDt;
+
+  rhoRemapHigh += rhoRemap;
   rhoRemapLow += rhoRemap;
 }
 
@@ -2793,6 +2817,7 @@ void FEMALEMethod::remapStepRhoFlux() {
   antidiffusiveFlux.setZero();
   antidiffusiveFlux.reserve(
       Eigen::VectorXi::Constant(Na, 4 * (order + 1) * (order + 1)));
+#pragma omp parallel for
   for (int k = 0; k < M.outerSize(); k++) {
     for (Eigen::SparseMatrix<double>::InnerIterator it(M, k); it; ++it) {
       const size_t indI = it.row();
@@ -2806,6 +2831,7 @@ void FEMALEMethod::remapStepRhoFlux() {
       }
     }
   }
+#pragma omp parallel for
   for (int k = 0; k < D.outerSize(); k++) {
     for (Eigen::SparseMatrix<double>::InnerIterator it(D, k); it; ++it) {
       const size_t indI = it.row();
@@ -2819,6 +2845,7 @@ void FEMALEMethod::remapStepRhoFlux() {
     }
   }
   const size_t nInCell = (order + 1) * (order + 1);
+#pragma omp parallel for
   for (size_t celli = 0; celli < xSize; celli++) {
     for (size_t cellj = 0; cellj < ySize; cellj++) {
       for (size_t i = 0; i < (order + 1) * (order + 1); i++) {
@@ -2856,6 +2883,7 @@ void FEMALEMethod::remapStepRhoFluxLimiting() {
   Eigen::Matrix<double, Eigen::Dynamic, 1> dRhoMinus(Na);
   dRhoPlus.setZero();
   dRhoMinus.setZero();
+#pragma omp parallel for
   for (int k = 0; k < antidiffusiveFlux.outerSize(); k++) {
     for (Eigen::SparseMatrix<double>::InnerIterator it(antidiffusiveFlux, k);
          it; ++it) {
@@ -2887,6 +2915,7 @@ void FEMALEMethod::remapStepRhoFluxLimiting() {
     }
   }
 
+#pragma omp parallel for
   for (int k = 0; k < antidiffusiveFlux.outerSize(); k++) {
     for (Eigen::SparseMatrix<double>::InnerIterator it(antidiffusiveFlux, k);
          it; ++it) {
@@ -2908,6 +2937,7 @@ void FEMALEMethod::remapStepRhoFluxLimiting() {
 void FEMALEMethod::remapStepRhoFinal() {
   rhoRemap = rhoRemapAvg;
 
+#pragma omp parallel for
   for (int k = 0; k < antidiffusiveFlux.outerSize(); k++) {
     for (Eigen::SparseMatrix<double>::InnerIterator it(antidiffusiveFlux, k);
          it; ++it) {
@@ -2983,6 +3013,7 @@ void FEMALEMethod::remapStepRhoEFlux() {
   antidiffusiveFlux.setZero();
   antidiffusiveFlux.reserve(
       Eigen::VectorXi::Constant(Na, 4 * (order + 1) * (order + 1)));
+#pragma omp parallel for
   for (int k = 0; k < M.outerSize(); k++) {
     for (Eigen::SparseMatrix<double>::InnerIterator it(M, k); it; ++it) {
       const size_t indI = it.row();
@@ -2996,6 +3027,7 @@ void FEMALEMethod::remapStepRhoEFlux() {
       }
     }
   }
+#pragma omp parallel for
   for (int k = 0; k < D.outerSize(); k++) {
     for (Eigen::SparseMatrix<double>::InnerIterator it(D, k); it; ++it) {
       const size_t indI = it.row();
@@ -3009,6 +3041,7 @@ void FEMALEMethod::remapStepRhoEFlux() {
     }
   }
   const size_t nInCell = (order + 1) * (order + 1);
+#pragma omp parallel for
   for (size_t celli = 0; celli < xSize; celli++) {
     for (size_t cellj = 0; cellj < ySize; cellj++) {
       for (size_t i = 0; i < (order + 1) * (order + 1); i++) {
@@ -3045,6 +3078,7 @@ void FEMALEMethod::remapStepRhoEFluxLimiting() {
   Eigen::Matrix<double, Eigen::Dynamic, 1> dRhoEMinus(Na);
   dRhoEPlus.setZero();
   dRhoEMinus.setZero();
+#pragma omp parallel for
   for (int k = 0; k < antidiffusiveFlux.outerSize(); k++) {
     for (Eigen::SparseMatrix<double>::InnerIterator it(antidiffusiveFlux, k);
          it; ++it) {
@@ -3076,6 +3110,7 @@ void FEMALEMethod::remapStepRhoEFluxLimiting() {
     }
   }
 
+#pragma omp parallel for
   for (int k = 0; k < antidiffusiveFlux.outerSize(); k++) {
     for (Eigen::SparseMatrix<double>::InnerIterator it(antidiffusiveFlux, k);
          it; ++it) {
@@ -3095,8 +3130,9 @@ void FEMALEMethod::remapStepRhoEFluxLimiting() {
 }
 
 void FEMALEMethod::remapStepRhoEFinal() {
-  rhoERemap.setZero();
+  rhoERemap = rhoERemapAvg;
 
+#pragma omp parallel for
   for (int k = 0; k < antidiffusiveFlux.outerSize(); k++) {
     for (Eigen::SparseMatrix<double>::InnerIterator it(antidiffusiveFlux, k);
          it; ++it) {
@@ -3111,8 +3147,6 @@ void FEMALEMethod::remapStepRhoEFinal() {
       rhoERemap(indI) += betaij * gij / mi;
     }
   }
-
-  rhoERemap += rhoERemapAvg;
 }
 
 Eigen::Matrix<double, 2, 2> FEMALEMethod::getCellJacobian(

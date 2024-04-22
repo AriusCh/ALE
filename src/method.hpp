@@ -45,8 +45,8 @@ class Method {
 
 class FEMALEMethod : public Method {
  public:
-  FEMALEMethod(const std::string &name, const Problem &problem, size_t xSize_,
-               size_t ySize_, size_t order_);
+  FEMALEMethod(const Problem &problem, size_t xSize_, size_t ySize_,
+               size_t order_, bool bRemapEnabled_, size_t remapFrequency_ = 10);
   FEMALEMethod(FEMALEMethod const &rhs) = delete;
   FEMALEMethod(FEMALEMethod &&rhs) = delete;
 
@@ -249,7 +249,8 @@ class FEMALEMethod : public Method {
   const size_t Nk;  // Number kinematic space points
   const size_t Nt;  // Number of thermodynamic space points
   const size_t Na;  // Number of advection space points
-  const size_t remapFrequency = 1;
+  const bool bRemapEnabled;
+  const size_t remapFrequency;
   const double q1 = 0.5;
   const double q2 = 2.0;
   const double alpha = 0.5;
@@ -258,7 +259,7 @@ class FEMALEMethod : public Method {
   const double beta2 = 1.02;
   const double gamma = 0.8;
   const double eps = 1e-4;
-  const double remapCFL = 0.9;
+  const double remapCFL = 0.1;
   const double remapTMax = 1.0;
   const double remapTMin = 0.0;
   double l0;
