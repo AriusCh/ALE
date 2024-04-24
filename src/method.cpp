@@ -520,8 +520,11 @@ Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> FEMALEMethod::quadCellKv(
               kinematicBasis1DdxQuadValues[(basisj / (order + 1)) * quadOrder +
                                            quadj];
 
+          // Eigen::Vector2d basisjGrad =
+          //     jacobianInv.transpose() * Eigen::Vector2d{basisj2Ddx,
+          //     basisj2Ddy};
           Eigen::Vector2d basisjGrad =
-              jacobianInv.transpose() * Eigen::Vector2d{basisj2Ddx, basisj2Ddy};
+              jacobianInv * Eigen::Vector2d{basisj2Ddx, basisj2Ddy};
           const double dotProd =
               uMeshLocal * basisjGrad(0) + vMeshLocal * basisjGrad(1);
 
@@ -588,8 +591,11 @@ Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> FEMALEMethod::quadCellK(
             advectionBasis1DdxQuadValues[(basisj / (order + 1)) * quadOrder +
                                          quadj];
 
+        // Eigen::Vector2d basisjGrad =
+        //     jacobianInv.transpose() * Eigen::Vector2d{basisj2Ddx,
+        //     basisj2Ddy};
         Eigen::Vector2d basisjGrad =
-            jacobianInv.transpose() * Eigen::Vector2d{basisj2Ddx, basisj2Ddy};
+            jacobianInv * Eigen::Vector2d{basisj2Ddx, basisj2Ddy};
         const double dotProd =
             uMeshLocal * basisjGrad(0) + vMeshLocal * basisjGrad(1);
 
@@ -1813,8 +1819,8 @@ void FEMALEMethod::calcAuxMat() {
 }
 
 void FEMALEMethod::optimizeMesh() {
-  xOptimal = xInitial;
-  yOptimal = yInitial;
+  xOptimal = x;
+  yOptimal = y;
 
 #pragma omp parallel for
   for (size_t celli = 0; celli < xSize; celli++) {
@@ -1856,6 +1862,9 @@ void FEMALEMethod::optimizeMesh() {
       }
     }
   }
+
+  // xOptimal = xInitial;
+  // yOptimal = yInitial;
 
   uMesh = xOptimal - x;
   vMesh = yOptimal - y;
@@ -2235,6 +2244,22 @@ void FEMALEMethod::resolveLeftBoundaryMass() {
         }
       }
       break;
+      // case BoundaryType::eTransparent:
+      //   for (size_t cellj = 0; cellj < ySize; cellj++) {
+      //     for (size_t i = 0; i < (order + 1) * (order + 1); i += order + 1) {
+      //       const size_t indI = getKinematicIndexFromCell(celli, cellj, i);
+      //       const size_t indIRight =
+      //           getKinematicIndexFromCell(celli, cellj, i + 1);
+      //       for (size_t j = 0; j < (order + 1) * (order + 1); j++) {
+      //         const size_t indJ = getKinematicIndexFromCell(celli, cellj, j);
+      //         Mkx.coeffRef(indI, indJ) = Mkx.coeffRef(indIRight, indJ);
+      //         Mkx.coeffRef(indJ, indI) = Mkx.coeffRef(indJ, indIRight);
+      //         Mky.coeffRef(indI, indJ) = Mky.coeffRef(indIRight, indJ);
+      //         Mky.coeffRef(indJ, indI) = Mky.coeffRef(indJ, indIRight);
+      //       }
+      //     }
+      //   }
+      //   break;
   }
 }
 void FEMALEMethod::resolveTopBoundaryMass() {
@@ -2270,6 +2295,23 @@ void FEMALEMethod::resolveTopBoundaryMass() {
         }
       }
       break;
+      // case BoundaryType::eTransparent:
+      //   for (size_t celli = 0; celli < xSize; celli++) {
+      //     for (size_t i = order * (order + 1); i < (order + 1) * (order + 1);
+      //          i++) {
+      //       const size_t indI = getKinematicIndexFromCell(celli, cellj, i);
+      //       assert(indI >= 1);
+      //       const size_t indIBottom = indI - 1;
+      //       for (size_t j = 0; j < (order + 1) * (order + 1); j++) {
+      //         const size_t indJ = getKinematicIndexFromCell(celli, cellj, j);
+      //         Mkx.coeffRef(indI, indJ) = Mkx.coeffRef(indIBottom, indJ);
+      //         Mkx.coeffRef(indJ, indI) = Mkx.coeffRef(indJ, indIBottom);
+      //         Mky.coeffRef(indI, indJ) = Mky.coeffRef(indIBottom, indJ);
+      //         Mky.coeffRef(indJ, indI) = Mky.coeffRef(indJ, indIBottom);
+      //       }
+      //     }
+      //   }
+      //   break;
   }
 }
 void FEMALEMethod::resolveRightBoundaryMass() {
@@ -2303,6 +2345,22 @@ void FEMALEMethod::resolveRightBoundaryMass() {
         }
       }
       break;
+      // case BoundaryType::eTransparent:
+      //   for (size_t cellj = 0; cellj < ySize; cellj++) {
+      //     for (size_t i = order; i < (order + 1) * (order + 1); i += order +
+      //     1) {
+      //       size_t indI = getKinematicIndexFromCell(celli, cellj, i);
+      //       size_t indILeft = getKinematicIndexFromCell(celli, cellj, i - 1);
+      //       for (size_t j = 0; j < (order + 1) * (order + 1); j++) {
+      //         size_t indJ = getKinematicIndexFromCell(celli, cellj, j);
+      //         Mkx.coeffRef(indI, indJ) = Mkx.coeffRef(indILeft, indJ);
+      //         Mkx.coeffRef(indJ, indI) = Mkx.coeffRef(indJ, indILeft);
+      //         Mky.coeffRef(indI, indJ) = Mky.coeffRef(indILeft, indJ);
+      //         Mky.coeffRef(indJ, indI) = Mky.coeffRef(indJ, indILeft);
+      //       }
+      //     }
+      //   }
+      //   break;
   }
 }
 void FEMALEMethod::resolveBottomBoundaryMass() {
@@ -2336,6 +2394,21 @@ void FEMALEMethod::resolveBottomBoundaryMass() {
         }
       }
       break;
+      // case BoundaryType::eTransparent:
+      //   for (size_t celli = 0; celli < xSize; celli++) {
+      //     for (size_t i = 0; i < order + 1; i++) {
+      //       const size_t indI = getKinematicIndexFromCell(celli, cellj, i);
+      //       const size_t indITop = indI + 1;
+      //       for (size_t j = 0; j < (order + 1) * (order + 1); j++) {
+      //         const size_t indJ = getKinematicIndexFromCell(celli, cellj, j);
+      //         Mkx.coeffRef(indI, indJ) = Mkx.coeffRef(indITop, indJ);
+      //         Mkx.coeffRef(indJ, indI) = Mkx.coeffRef(indJ, indITop);
+      //         Mky.coeffRef(indI, indJ) = Mky.coeffRef(indITop, indJ);
+      //         Mky.coeffRef(indJ, indI) = Mky.coeffRef(indJ, indITop);
+      //       }
+      //     }
+      //   }
+      // break;
   }
 }
 void FEMALEMethod::resolveBoundaryForce() {
@@ -2372,6 +2445,18 @@ void FEMALEMethod::resolveLeftBoundaryForce() {
         }
       }
       break;
+      // case BoundaryType::eTransparent:
+      //   for (size_t cellj = 0; cellj < ySize; cellj++) {
+      //     for (size_t i = 0; i < (order + 1) * (order + 1); i += order + 1) {
+      //       const size_t indI = getKinematicIndexFromCell(celli, cellj, i);
+      //       const size_t indIRight =
+      //           getKinematicIndexFromCell(celli, cellj, i + 1);
+      //       for (size_t j = 0; j < order * order; j++) {
+      //         size_t indJ = getThermodynamicIndexFromCell
+      //       }
+      //     }
+      //   }
+      // break;
   }
 }
 void FEMALEMethod::resolveTopBoundaryForce() {

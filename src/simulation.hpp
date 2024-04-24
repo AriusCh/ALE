@@ -30,7 +30,7 @@ class Simulation {
   std::unique_ptr<Method> method;
 
   // Step time relaxation
-  static constexpr size_t stepTimesMaxSize = 10;
+  static constexpr size_t stepTimesMaxSize = 50;
   std::queue<double> stepTimes;
   double stepTimesSum = 0.0;
 

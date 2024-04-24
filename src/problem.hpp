@@ -32,6 +32,10 @@ class Problem {
       const std::string &name, double xmin, double xmax, double ymin,
       double tmax, const std::deque<double> &tOut, double rhoM, double pCold,
       double pHeat, double RL, double dSkin);
+  static Problem createLaserVolumeTargetAirProblem(
+      const std::string &name, double xmin, double xmax, double ymin,
+      double tmax, const std::deque<double> &tOut, double rhoM, double pCold,
+      double pHeat, double RL, double dSkin, double rhoAir, double gammaAir);
   static Problem createTriplePointProblem(
       const std::string &name, double xmin, double xmax, double ymin,
       double ymax, double tmax, const std::deque<double> &tOut, double vSplit,
@@ -97,6 +101,7 @@ class Problems {
   static Problem sodTest;
   static Problem blastWave2D;
   static Problem laserVolumeTarget;
+  static Problem laserVolumeTargetAir;
   static Problem triplePointShock;
 
   static Problem task1v2;

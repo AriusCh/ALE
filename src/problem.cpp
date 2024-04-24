@@ -154,6 +154,61 @@ Problem Problem::createLaserVolumeTargetProblem(
                  rhoInitializer, pInitializer, eosInitializer);
 }
 
+Problem Problem::createLaserVolumeTargetAirProblem(
+    const std::string &name, double xmin, double xmax, double ymin, double tmax,
+    const std::deque<double> &tOut, double rhoM, double pCold, double pHeat,
+    double RL, double dSkin, double rhoAir, double gammaAir) {
+  assert(ymin < -dSkin);
+
+  const double ymax = 300.0e-9;
+  const double tmin = 0.0;
+  const double tMul = 1e12;
+  const BoundaryType leftBoundaryType = BoundaryType::eWall;
+  const BoundaryType topBoundaryType = BoundaryType::eWall;
+  const BoundaryType rightBoundaryType = BoundaryType::eWall;
+  const BoundaryType bottomBoundaryType = BoundaryType::eWall;
+  const ProblemDimension dimension = ProblemDimension::e2D;
+
+  auto uInitializer = []([[maybe_unused]] double x, [[maybe_unused]] double y) {
+    return 0.0;
+  };
+  auto vInitializer = []([[maybe_unused]] double x, [[maybe_unused]] double y) {
+    return 0.0;
+  };
+  auto rhoInitializer = [rhoM, rhoAir]([[maybe_unused]] double x, double y) {
+    if (y > 0.0) {
+      return rhoAir;
+    }
+    return rhoM;
+  };
+  auto pInitializer = [pCold, pHeat, RL, dSkin](double x, double y) {
+    if (y > 0.0) {
+      return pCold;
+    }
+    if (std::abs(x) <= RL && y > -dSkin) {
+      return pHeat;
+    } else {
+      return pCold;
+    }
+  };
+  auto eosInitializer = [gammaAir]([[maybe_unused]] double x,
+                                   double y) -> std::shared_ptr<EOS> {
+    static std::shared_ptr<EOSMGAlPrecise6> eosM =
+        std::make_shared<EOSMGAlPrecise6>();
+    static std::shared_ptr<EOSIdeal> eosAir =
+        std::make_shared<EOSIdeal>(gammaAir);
+    if (y > 0.0) {
+      return eosAir;
+    }
+    return eosM;
+  };
+
+  return Problem(name, xmin, xmax, ymin, ymax, tmin, tmax, tOut, tMul,
+                 leftBoundaryType, topBoundaryType, rightBoundaryType,
+                 bottomBoundaryType, dimension, uInitializer, vInitializer,
+                 rhoInitializer, pInitializer, eosInitializer);
+}
+
 Problem Problem::createTriplePointProblem(
     const std::string &name, double xmin, double xmax, double ymin, double ymax,
     double tmax, const std::deque<double> &tOut, double vSplit, double hSplit,
@@ -424,12 +479,22 @@ Problem Problems::blastWave2D = Problem::createCircularRiemannProblem(
 
 // LaserVolumeDefaultProblem
 Problem Problems::laserVolumeTarget = Problem::createLaserVolumeTargetProblem(
-    "laser-al", 0.0, 1280e-9, -800e-9, 115.2e-12,
+    "laser-al", 0.0, 900e-9, -800e-9, 115.2e-12,
     std::deque<double>{0.1 * 9.6e-12, 1.0 * 9.6e-12, 2.0 * 9.6e-12,
                        3.0 * 9.6e-12, 4.0 * 9.6e-12, 5.0 * 9.6e-12,
                        6.0 * 9.6e-12, 7.0 * 9.6e-12, 8.0 * 9.6e-12,
                        9.0 * 9.6e-12, 10.0 * 9.6e-12, 11.0 * 9.6e-12},
     2413.0, 0.0, 35.6e9, 200e-9, 80e-9);
+
+// LaserVolumeAirProblem
+Problem Problems::laserVolumeTargetAir =
+    Problem::createLaserVolumeTargetAirProblem(
+        "laser-al-air", 0.0, 900e-9, -800e-9, 115.2e-12,
+        std::deque<double>{0.1 * 9.6e-12, 1.0 * 9.6e-12, 2.0 * 9.6e-12,
+                           3.0 * 9.6e-12, 4.0 * 9.6e-12, 5.0 * 9.6e-12,
+                           6.0 * 9.6e-12, 7.0 * 9.6e-12, 8.0 * 9.6e-12,
+                           9.0 * 9.6e-12, 10.0 * 9.6e-12, 11.0 * 9.6e-12},
+        2413.0, 101325, 35.6e9, 200e-9, 80e-9, 1.2754, 1.4);
 
 // Triple point shock wave
 Problem Problems::triplePointShock = Problem::createTriplePointProblem(
