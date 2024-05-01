@@ -259,7 +259,7 @@ class FEMALEMethod : public Method {
   const double beta2 = 1.02;
   const double gamma = 0.8;
   const double eps = 1e-4;
-  const double remapCFL = 0.9;
+  const double remapCFL = 0.1;
   const double remapTMax = 1.0;
   const double remapTMin = 0.0;
   double l0;

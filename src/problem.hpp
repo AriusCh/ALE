@@ -99,6 +99,7 @@ class Problem {
 class Problems {
  public:
   static Problem sodTest;
+  static Problem toro1x;
   static Problem blastWave2D;
   static Problem laserVolumeTarget;
   static Problem laserVolumeTargetAir;

@@ -1822,49 +1822,49 @@ void FEMALEMethod::optimizeMesh() {
   xOptimal = x;
   yOptimal = y;
 
-#pragma omp parallel for
-  for (size_t celli = 0; celli < xSize; celli++) {
-    for (size_t cellj = 0; cellj < ySize; cellj++) {
-      for (size_t i = 0; i < (order + 1) * (order + 1); i++) {
-        if (celli == 0 && i % (order + 1) == 0) {
-          continue;
-        }
-        if (celli == xSize - 1 && i % (order + 1) == order) {
-          continue;
-        }
-        if (cellj == 0 && i / (order + 1) == 0) {
-          continue;
-        }
-        if (cellj == ySize - 1 && i / (order + 1) == order) {
-          continue;
-        }
-        const size_t indI = getKinematicIndexFromCell(celli, cellj, i);
-        assert(indI >= order * ySize + 1);
-        const size_t indLeft = indI - order * ySize - 1;
-        const size_t indTop = indI + 1;
-        const size_t indRight = indI + order * ySize + 1;
-        const size_t indBottom = indI - 1;
+// #pragma omp parallel for
+//   for (size_t celli = 0; celli < xSize; celli++) {
+//     for (size_t cellj = 0; cellj < ySize; cellj++) {
+//       for (size_t i = 0; i < (order + 1) * (order + 1); i++) {
+//         if (celli == 0 && i % (order + 1) == 0) {
+//           continue;
+//         }
+//         if (celli == xSize - 1 && i % (order + 1) == order) {
+//           continue;
+//         }
+//         if (cellj == 0 && i / (order + 1) == 0) {
+//           continue;
+//         }
+//         if (cellj == ySize - 1 && i / (order + 1) == order) {
+//           continue;
+//         }
+//         const size_t indI = getKinematicIndexFromCell(celli, cellj, i);
+//         assert(indI >= order * ySize + 1);
+//         const size_t indLeft = indI - order * ySize - 1;
+//         const size_t indTop = indI + 1;
+//         const size_t indRight = indI + order * ySize + 1;
+//         const size_t indBottom = indI - 1;
+//
+//         const double xI = x(indI);
+//         const double xLeft = x(indLeft);
+//         const double xTop = x(indTop);
+//         const double xRight = x(indRight);
+//         const double xBottom = x(indBottom);
+//
+//         const double yI = y(indI);
+//         const double yLeft = y(indLeft);
+//         const double yTop = y(indTop);
+//         const double yRight = y(indRight);
+//         const double yBottom = y(indBottom);
+//
+//         xOptimal(indI) = 0.125 * (4.0 * xI + xLeft + xTop + xRight + xBottom);
+//         yOptimal(indI) = 0.125 * (4.0 * yI + yLeft + yTop + yRight + yBottom);
+//       }
+//     }
+//   }
 
-        const double xI = x(indI);
-        const double xLeft = x(indLeft);
-        const double xTop = x(indTop);
-        const double xRight = x(indRight);
-        const double xBottom = x(indBottom);
-
-        const double yI = y(indI);
-        const double yLeft = y(indLeft);
-        const double yTop = y(indTop);
-        const double yRight = y(indRight);
-        const double yBottom = y(indBottom);
-
-        xOptimal(indI) = 0.125 * (4.0 * xI + xLeft + xTop + xRight + xBottom);
-        yOptimal(indI) = 0.125 * (4.0 * yI + yLeft + yTop + yRight + yBottom);
-      }
-    }
-  }
-
-  // xOptimal = xInitial;
-  // yOptimal = yInitial;
+  xOptimal = xInitial;
+  yOptimal = yInitial;
 
   uMesh = xOptimal - x;
   vMesh = yOptimal - y;

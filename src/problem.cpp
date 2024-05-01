@@ -472,6 +472,9 @@ Problem::Problem(
 Problem Problems::sodTest = Problem::createRiemannProblem1Dx(
     "sod-test", 0.0, 1.0, 0.2, std::deque<double>{}, 0.0, 1.0, 1.0, 0.0, 0.125,
     0.1, 0.5, 5.0 / 3.0);
+Problem Problems::toro1x = Problem::createRiemannProblem1Dx(
+    "toro1x", 0.0, 1.0, 0.2, std::deque<double>{0.02, 0.04}, 0.75, 1.0, 1.0,
+    0.0, 0.125, 0.1, 0.3, 1.4);
 
 Problem Problems::blastWave2D = Problem::createCircularRiemannProblem(
     "blastWave", 0.0, 1.0, 0.0, 1.0, 0.25, std::deque<double>{}, 0.0, 0.0, 1.0,
