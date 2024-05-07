@@ -520,9 +520,6 @@ Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> FEMALEMethod::quadCellKv(
               kinematicBasis1DdxQuadValues[(basisj / (order + 1)) * quadOrder +
                                            quadj];
 
-          // Eigen::Vector2d basisjGrad =
-          //     jacobianInv.transpose() * Eigen::Vector2d{basisj2Ddx,
-          //     basisj2Ddy};
           Eigen::Vector2d basisjGrad =
               jacobianInv * Eigen::Vector2d{basisj2Ddx, basisj2Ddy};
           const double dotProd =
@@ -591,9 +588,6 @@ Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> FEMALEMethod::quadCellK(
             advectionBasis1DdxQuadValues[(basisj / (order + 1)) * quadOrder +
                                          quadj];
 
-        // Eigen::Vector2d basisjGrad =
-        //     jacobianInv.transpose() * Eigen::Vector2d{basisj2Ddx,
-        //     basisj2Ddy};
         Eigen::Vector2d basisjGrad =
             jacobianInv * Eigen::Vector2d{basisj2Ddx, basisj2Ddy};
         const double dotProd =
@@ -770,7 +764,7 @@ FEMALEMethod::quadForceCell(size_t celli, size_t cellj,
       double soundSpeed = 0.0;
       double rhoLocal = 0.0;
       double maxViscosityCoeff = 0.0;
-      double jacDet = std::abs(jacobian.determinant());
+      const double jacDet = std::abs(jacobian.determinant());
 
       Eigen::Matrix<double, 2, 2> stressTensor =
           calcStressTensor(u, v, e, jacobian, soundSpeed, rhoLocal,
@@ -794,43 +788,27 @@ FEMALEMethod::quadForceCell(size_t celli, size_t cellj,
               kinematicBasis1DdxQuadValues[(basisKinematic / (order + 1)) *
                                                quadOrder +
                                            quadj];
-          Eigen::Matrix<double, 2, 2> gradBasisx{
-              {basisKinematic2Ddx, basisKinematic2Ddy}, {0.0, 0.0}};
-          Eigen::Matrix<double, 2, 2> gradBasisy{
-              {0.0, 0.0}, {basisKinematic2Ddx, basisKinematic2Ddy}};
-          double thermobasis =
+
+          Eigen::Vector2d gradBasis{basisKinematic2Ddx, basisKinematic2Ddy};
+          gradBasis = jacobian.inverse() * gradBasis;
+          const double thermobasis =
               thermoBasis1DQuadValues[(basisThermo % order) * quadOrder +
                                       quadi] *
               thermoBasis1DQuadValues[(basisThermo / order) * quadOrder +
                                       quadj];
 
-          Eigen::Matrix<double, 2, 2> rhsx = jacobian.inverse();
-          Eigen::Matrix<double, 2, 2> rhsy = rhsx;
-          rhsx = rhsx * gradBasisx;
-          rhsx *= thermobasis * jacDet;
-          rhsy = rhsy * gradBasisy;
-          rhsy *= thermobasis * jacDet;
-
-          // output[0] += legendreWeights[indMin + i] *
-          //              legendreWeights[indMin + j] *
-          //              (stressTensor(0, 0) * rhsx(0, 0) +
-          //               stressTensor(0, 1) * rhsx(0, 1) +
-          //               stressTensor(1, 0) * rhsx(1, 0) +
-          //               stressTensor(1, 1) * rhsx(1, 1));
-          // output[1] += legendreWeights[indMin + i] *
-          //              legendreWeights[indMin + j] *
-          //              (stressTensor(0, 0) * rhsy(0, 0) +
-          //               stressTensor(0, 1) * rhsy(0, 1) +
-          //               stressTensor(1, 0) * rhsy(1, 0) +
-          //               stressTensor(1, 1) * rhsy(1, 1));
           output[0](basisKinematic, basisThermo) +=
               legendreWeights[indMin + quadi] *
               legendreWeights[indMin + quadj] *
-              (stressTensor.transpose() * rhsx).trace();
+              (stressTensor(0, 0) * gradBasis(0) +
+               stressTensor(1, 0) * gradBasis(1)) *
+              thermobasis * jacDet;
           output[1](basisKinematic, basisThermo) +=
               legendreWeights[indMin + quadi] *
               legendreWeights[indMin + quadj] *
-              (stressTensor.transpose() * rhsy).trace();
+              (stressTensor(0, 1) * gradBasis(0) +
+               stressTensor(1, 1) * gradBasis(1)) *
+              thermobasis * jacDet;
         }
       }
       calcTau(hmin, soundSpeed, rhoLocal, maxViscosityCoeff);
@@ -1523,7 +1501,7 @@ void FEMALEMethod::calcForceMatrices(
       }
     }
   }
-  resolveBoundaryForce();
+  // resolveBoundaryForce();
 }
 
 Eigen::Matrix<double, 2, 2> FEMALEMethod::calcStressTensor(
@@ -1594,8 +1572,8 @@ Eigen::Matrix<double, 2, 2> FEMALEMethod::calcArtificialViscosity(
         kinematicBasis1DQuadValues[(k % (order + 1)) * quadOrder + i] *
         kinematicBasis1DdxQuadValues[(k / (order + 1)) * quadOrder + j];
     velocityGrad(0, 0) += uk * basis2Ddx;
-    velocityGrad(0, 1) += uk * basis2Ddy;
-    velocityGrad(1, 0) += vk * basis2Ddx;
+    velocityGrad(1, 0) += uk * basis2Ddy;
+    velocityGrad(0, 1) += vk * basis2Ddx;
     velocityGrad(1, 1) += vk * basis2Ddy;
   }
   velocityGrad = jacobian.inverse() * velocityGrad;
@@ -1605,13 +1583,13 @@ Eigen::Matrix<double, 2, 2> FEMALEMethod::calcArtificialViscosity(
   Eigen::SelfAdjointEigenSolver<decltype(symVelocityGrad)> eigensolver(
       symVelocityGrad);
 
-  double e1 = eigensolver.eigenvalues()(0);
-  double e2 = eigensolver.eigenvalues()(1);
+  const double e1 = eigensolver.eigenvalues()(0);
+  const double e2 = eigensolver.eigenvalues()(1);
   Eigen::Matrix<double, 2, 1> v1 = eigensolver.eigenvectors().col(0);
   Eigen::Matrix<double, 2, 1> v2 = eigensolver.eigenvectors().col(1);
-  double viscosityCoeff1 = calcViscosityCoeff(
+  const double viscosityCoeff1 = calcViscosityCoeff(
       jacobian, jacobianInitial, velocityGrad, e1, v1, soundSpeed, rhoLocal);
-  double viscosityCoeff2 = calcViscosityCoeff(
+  const double viscosityCoeff2 = calcViscosityCoeff(
       jacobian, jacobianInitial, velocityGrad, e2, v2, soundSpeed, rhoLocal);
 
   Eigen::Matrix<double, 2, 2> v1Tensor{{v1(0) * v1(0), v1(0) * v1(1)},
@@ -1644,7 +1622,7 @@ double FEMALEMethod::calcViscosityCoeff(
 
   Eigen::Matrix<double, 2, 2> jacobianInitial_inv = jacobianInitial.inverse();
   Eigen::Matrix<double, 2, 2> jacobianMapping = jacobianInitial_inv * jacobian;
-  double localLengthScale =
+  const double localLengthScale =
       l0 * (jacobianMapping * eigenvector).norm() / eigenvector.norm();
 
   double lhs = q2 * localLengthScale * localLengthScale * std::abs(eigenvalue);
@@ -1822,46 +1800,47 @@ void FEMALEMethod::optimizeMesh() {
   xOptimal = x;
   yOptimal = y;
 
-// #pragma omp parallel for
-//   for (size_t celli = 0; celli < xSize; celli++) {
-//     for (size_t cellj = 0; cellj < ySize; cellj++) {
-//       for (size_t i = 0; i < (order + 1) * (order + 1); i++) {
-//         if (celli == 0 && i % (order + 1) == 0) {
-//           continue;
-//         }
-//         if (celli == xSize - 1 && i % (order + 1) == order) {
-//           continue;
-//         }
-//         if (cellj == 0 && i / (order + 1) == 0) {
-//           continue;
-//         }
-//         if (cellj == ySize - 1 && i / (order + 1) == order) {
-//           continue;
-//         }
-//         const size_t indI = getKinematicIndexFromCell(celli, cellj, i);
-//         assert(indI >= order * ySize + 1);
-//         const size_t indLeft = indI - order * ySize - 1;
-//         const size_t indTop = indI + 1;
-//         const size_t indRight = indI + order * ySize + 1;
-//         const size_t indBottom = indI - 1;
-//
-//         const double xI = x(indI);
-//         const double xLeft = x(indLeft);
-//         const double xTop = x(indTop);
-//         const double xRight = x(indRight);
-//         const double xBottom = x(indBottom);
-//
-//         const double yI = y(indI);
-//         const double yLeft = y(indLeft);
-//         const double yTop = y(indTop);
-//         const double yRight = y(indRight);
-//         const double yBottom = y(indBottom);
-//
-//         xOptimal(indI) = 0.125 * (4.0 * xI + xLeft + xTop + xRight + xBottom);
-//         yOptimal(indI) = 0.125 * (4.0 * yI + yLeft + yTop + yRight + yBottom);
-//       }
-//     }
-//   }
+  // #pragma omp parallel for
+  //   for (size_t celli = 0; celli < xSize; celli++) {
+  //     for (size_t cellj = 0; cellj < ySize; cellj++) {
+  //       for (size_t i = 0; i < (order + 1) * (order + 1); i++) {
+  //         if (celli == 0 && i % (order + 1) == 0) {
+  //           continue;
+  //         }
+  //         if (celli == xSize - 1 && i % (order + 1) == order) {
+  //           continue;
+  //         }
+  //         if (cellj == 0 && i / (order + 1) == 0) {
+  //           continue;
+  //         }
+  //         if (cellj == ySize - 1 && i / (order + 1) == order) {
+  //           continue;
+  //         }
+  //         const size_t indI = getKinematicIndexFromCell(celli, cellj, i);
+  //         assert(indI >= order * ySize + 1);
+  //         const size_t indLeft = indI - order * ySize - 1;
+  //         const size_t indTop = indI + 1;
+  //         const size_t indRight = indI + order * ySize + 1;
+  //         const size_t indBottom = indI - 1;
+  //
+  //         const double xI = x(indI);
+  //         const double xLeft = x(indLeft);
+  //         const double xTop = x(indTop);
+  //         const double xRight = x(indRight);
+  //         const double xBottom = x(indBottom);
+  //
+  //         const double yI = y(indI);
+  //         const double yLeft = y(indLeft);
+  //         const double yTop = y(indTop);
+  //         const double yRight = y(indRight);
+  //         const double yBottom = y(indBottom);
+  //
+  //         xOptimal(indI) = 0.125 * (4.0 * xI + xLeft + xTop + xRight +
+  //         xBottom); yOptimal(indI) = 0.125 * (4.0 * yI + yLeft + yTop +
+  //         yRight + yBottom);
+  //       }
+  //     }
+  //   }
 
   xOptimal = xInitial;
   yOptimal = yInitial;
@@ -2552,6 +2531,111 @@ void FEMALEMethod::resolveBottomBoundaryForce() {
   }
 }
 
+void FEMALEMethod::resolveBoundaryForceVector() {
+  resolveLeftBoundaryForceVector();
+  resolveTopBoundaryForceVector();
+  resolveRightBoundaryForceVector();
+  resolveBottomBoundaryForceVector();
+}
+void FEMALEMethod::resolveLeftBoundaryForceVector() {
+  const size_t celli = 0;
+  switch (problem.leftBoundaryType) {
+    case BoundaryType::eFree:
+      break;
+    case BoundaryType::eWall:
+      for (size_t cellj = 0; cellj < ySize; cellj++) {
+        for (size_t i = 0; i < (order + 1) * (order + 1); i += order + 1) {
+          const size_t indI = getKinematicIndexFromCell(celli, cellj, i);
+          Fu(indI) = 0.0;
+        }
+      }
+      break;
+    case BoundaryType::eNoSlipWall:
+      for (size_t cellj = 0; cellj < ySize; cellj++) {
+        for (size_t i = 0; i < (order + 1) * (order + 1); i += order + 1) {
+          const size_t indI = getKinematicIndexFromCell(celli, cellj, i);
+          Fu(indI) = 0.0;
+          Fv(indI) = 0.0;
+        }
+      }
+      break;
+  }
+}
+void FEMALEMethod::resolveTopBoundaryForceVector() {
+  const size_t cellj = ySize - 1;
+  switch (problem.topBoundaryType) {
+    case BoundaryType::eFree:
+      break;
+    case BoundaryType::eWall:
+      for (size_t celli = 0; celli < xSize; celli++) {
+        for (size_t i = order * (order + 1); i < (order + 1) * (order + 1);
+             i++) {
+          const size_t indI = getKinematicIndexFromCell(celli, cellj, i);
+          Fv(indI) = 0.0;
+        }
+      }
+      break;
+    case BoundaryType::eNoSlipWall:
+      for (size_t celli = 0; celli < xSize; celli++) {
+        for (size_t i = order * (order + 1); i < (order + 1) * (order + 1);
+             i++) {
+          const size_t indI = getKinematicIndexFromCell(celli, cellj, i);
+          Fu(indI) = 0.0;
+          Fv(indI) = 0.0;
+        }
+      }
+      break;
+  }
+}
+void FEMALEMethod::resolveRightBoundaryForceVector() {
+  const size_t celli = xSize - 1;
+  switch (problem.rightBoundaryType) {
+    case BoundaryType::eFree:
+      break;
+    case BoundaryType::eWall:
+      for (size_t cellj = 0; cellj < ySize; cellj++) {
+        for (size_t i = order; i < (order + 1) * (order + 1); i += order + 1) {
+          const size_t indI = getKinematicIndexFromCell(celli, cellj, i);
+          Fu(indI) = 0.0;
+        }
+      }
+      break;
+    case BoundaryType::eNoSlipWall:
+      for (size_t cellj = 0; cellj < ySize; cellj++) {
+        for (size_t i = order; i < (order + 1) * (order + 1); i += order + 1) {
+          const size_t indI = getKinematicIndexFromCell(celli, cellj, i);
+          Fu(indI) = 0.0;
+          Fv(indI) = 0.0;
+        }
+      }
+      break;
+  }
+}
+void FEMALEMethod::resolveBottomBoundaryForceVector() {
+  const size_t cellj = 0;
+  switch (problem.bottomBoundaryType) {
+    case BoundaryType::eFree:
+      break;
+    case BoundaryType::eWall:
+      for (size_t celli = 0; celli < xSize; celli++) {
+        for (size_t i = 0; i < order + 1; i++) {
+          const size_t indI = getKinematicIndexFromCell(celli, cellj, i);
+          Fv(indI) = 0.0;
+        }
+      }
+      break;
+    case BoundaryType::eNoSlipWall:
+      for (size_t celli = 0; celli < xSize; celli++) {
+        for (size_t i = 0; i < order + 1; i++) {
+          const size_t indI = getKinematicIndexFromCell(celli, cellj, i);
+          Fu(indI) = 0.0;
+          Fv(indI) = 0.0;
+        }
+      }
+      break;
+  }
+}
+
 void FEMALEMethod::resolveBoundaryVector() {
   resolveLeftBoundaryVector();
   resolveTopBoundaryVector();
@@ -2728,6 +2812,7 @@ void FEMALEMethod::RK2step() {
 
     Fu = Fx * Eigen::Matrix<double, Eigen::Dynamic, 1>::Ones(Nt);
     Fv = Fy * Eigen::Matrix<double, Eigen::Dynamic, 1>::Ones(Nt);
+    resolveBoundaryForceVector();
 
     u05 = kinematicSolverx.solve(Fu);
     assert(kinematicSolverx.info() == Eigen::Success);
@@ -2759,6 +2844,7 @@ void FEMALEMethod::RK2step() {
 
   Fu = Fx * Eigen::Matrix<double, Eigen::Dynamic, 1>::Ones(Nt);
   Fv = Fy * Eigen::Matrix<double, Eigen::Dynamic, 1>::Ones(Nt);
+  resolveBoundaryForceVector();
 
   u05 = kinematicSolverx.solve(Fu);
   assert(kinematicSolverx.info() == Eigen::Success);
@@ -2818,21 +2904,21 @@ void FEMALEMethod::remapStep() {
   assert(MvSolver.info() == Eigen::Success);
 
   remapStepRhoPrepare();
+  remapStepRhoEPrepare();
 #pragma omp parallel for
   for (size_t celli = 0; celli < xSize; celli++) {
     for (size_t cellj = 0; cellj < ySize; cellj++) {
       remapStepRhoMinMaxCell(celli, cellj);
       remapStepRhoAvgCell(celli, cellj);
+      remapStepRhoEMinMaxCell(celli, cellj);
     }
   }
   remapStepRhoFlux();
   remapStepRhoFinal();
 
-  remapStepRhoEPrepare();
 #pragma omp parallel for
   for (size_t celli = 0; celli < xSize; celli++) {
     for (size_t cellj = 0; cellj < ySize; cellj++) {
-      remapStepRhoEMinMaxCell(celli, cellj);
       remapStepRhoEAvgCell(celli, cellj);
     }
   }
@@ -2846,15 +2932,13 @@ void FEMALEMethod::remapStep() {
 
 void FEMALEMethod::remapStepRhoPrepare() {
   rhoRemapHigh = K * rhoRemap;
-  rhoRemapLow = Kupwinded * rhoRemap;
-
   rhoRemapHigh = MInv * rhoRemapHigh;
-  rhoRemapLow = MlumpedInv * rhoRemapLow;
-
   rhoRemapHigh *= remapDt;
-  rhoRemapLow *= remapDt;
-
   rhoRemapHigh += rhoRemap;
+
+  rhoRemapLow = Kupwinded * rhoRemap;
+  rhoRemapLow = MlumpedInv * rhoRemapLow;
+  rhoRemapLow *= remapDt;
   rhoRemapLow += rhoRemap;
 }
 
@@ -3044,6 +3128,7 @@ void FEMALEMethod::remapStepRhoEPrepare() {
   rhoERemapHigh *= remapDt;
   rhoERemapHigh = MInv * rhoERemapHigh;
   rhoERemapHigh += rhoERemap;
+
   rhoERemapLow = Kupwinded * rhoERemap;
   rhoERemapLow *= remapDt;
   rhoERemapLow = MlumpedInv * rhoERemapLow;
@@ -3252,8 +3337,8 @@ Eigen::Matrix<double, 2, 2> FEMALEMethod::getCellJacobian(
         kinematicBasis1DQuadValues[(k % (order + 1)) * quadOrder + quadi] *
         kinematicBasis1DdxQuadValues[(k / (order + 1)) * quadOrder + quadj];
     jacobian(0, 0) += xk * basis2Ddx;
-    jacobian(0, 1) += xk * basis2Ddy;
-    jacobian(1, 0) += yk * basis2Ddx;
+    jacobian(1, 0) += xk * basis2Ddy;
+    jacobian(0, 1) += yk * basis2Ddx;
     jacobian(1, 1) += yk * basis2Ddy;
   }
   return jacobian;

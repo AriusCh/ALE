@@ -100,6 +100,10 @@ class Problems {
  public:
   static Problem sodTest;
   static Problem toro1x;
+  static Problem toro2x;
+  static Problem toro3x;
+  static Problem toro4x;
+  static Problem toro5x;
   static Problem blastWave2D;
   static Problem laserVolumeTarget;
   static Problem laserVolumeTargetAir;
