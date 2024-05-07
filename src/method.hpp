@@ -210,11 +210,13 @@ class FEMALEMethod : public Method {
   void resolveRightBoundaryForce();
   void resolveBottomBoundaryForce();
 
-  void resolveBoundaryForceVector();
-  void resolveLeftBoundaryForceVector();
-  void resolveTopBoundaryForceVector();
-  void resolveRightBoundaryForceVector();
-  void resolveBottomBoundaryForceVector();
+  void resolveBoundaryForceVector(Eigen::VectorXd &Fu, Eigen::VectorXd &Fv);
+  void resolveLeftBoundaryForceVector(Eigen::VectorXd &Fu, Eigen::VectorXd &Fv);
+  void resolveTopBoundaryForceVector(Eigen::VectorXd &Fu, Eigen::VectorXd &Fv);
+  void resolveRightBoundaryForceVector(Eigen::VectorXd &Fu,
+                                       Eigen::VectorXd &Fv);
+  void resolveBottomBoundaryForceVector(Eigen::VectorXd &Fu,
+                                        Eigen::VectorXd &Fv);
 
   void resolveBoundaryVector();
   void resolveLeftBoundaryVector();
@@ -223,6 +225,7 @@ class FEMALEMethod : public Method {
   void resolveBottomBoundaryVector();
 
   void RK2step();
+  void RK4step();
   void remap();
   void remapStep();
 
@@ -259,7 +262,7 @@ class FEMALEMethod : public Method {
   const size_t remapFrequency;
   const double q1 = 0.5;
   const double q2 = 2.0;
-  const double alpha = 0.5;
+  const double alpha = 0.3;
   const double alphamu = 2.5;
   const double beta1 = 0.85;
   const double beta2 = 1.02;
@@ -288,6 +291,28 @@ class FEMALEMethod : public Method {
   Eigen::Matrix<double, Eigen::Dynamic, 1> Fu;
   Eigen::Matrix<double, Eigen::Dynamic, 1> Fv;
   Eigen::Matrix<double, Eigen::Dynamic, 1> Fe;
+
+  // RK4 VARIABLES
+  Eigen::Matrix<double, Eigen::Dynamic, 1> Fu1;
+  Eigen::Matrix<double, Eigen::Dynamic, 1> Fv1;
+  Eigen::Matrix<double, Eigen::Dynamic, 1> Fe1;
+  Eigen::Matrix<double, Eigen::Dynamic, 1> u1;
+  Eigen::Matrix<double, Eigen::Dynamic, 1> v1;
+  Eigen::Matrix<double, Eigen::Dynamic, 1> Fu2;
+  Eigen::Matrix<double, Eigen::Dynamic, 1> Fv2;
+  Eigen::Matrix<double, Eigen::Dynamic, 1> Fe2;
+  Eigen::Matrix<double, Eigen::Dynamic, 1> u2;
+  Eigen::Matrix<double, Eigen::Dynamic, 1> v2;
+  Eigen::Matrix<double, Eigen::Dynamic, 1> Fu3;
+  Eigen::Matrix<double, Eigen::Dynamic, 1> Fv3;
+  Eigen::Matrix<double, Eigen::Dynamic, 1> Fe3;
+  Eigen::Matrix<double, Eigen::Dynamic, 1> u3;
+  Eigen::Matrix<double, Eigen::Dynamic, 1> v3;
+  Eigen::Matrix<double, Eigen::Dynamic, 1> Fu4;
+  Eigen::Matrix<double, Eigen::Dynamic, 1> Fv4;
+  Eigen::Matrix<double, Eigen::Dynamic, 1> Fe4;
+  Eigen::Matrix<double, Eigen::Dynamic, 1> u4;
+  Eigen::Matrix<double, Eigen::Dynamic, 1> v4;
 
   Eigen::Matrix<double, Eigen::Dynamic, 1> xOptimal;
   Eigen::Matrix<double, Eigen::Dynamic, 1> yOptimal;

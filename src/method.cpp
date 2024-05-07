@@ -93,6 +93,7 @@ FEMALEMethod::FEMALEMethod(const Problem &problem_, size_t xSize_,
 
 void FEMALEMethod::calc() {
   RK2step();
+  // RK4step();
   if (bRemapEnabled && ++iteration % remapFrequency == 0) {
     remap();
   }
@@ -1494,6 +1495,9 @@ void FEMALEMethod::calcForceMatrices(
         for (size_t thermok = 0; thermok < order * order; thermok++) {
           size_t indI = getKinematicIndexFromCell(celli, cellj, kinematikk);
           size_t indJ = getThermodynamicIndexFromCell(celli, cellj, thermok);
+          if (std::isnan(quadResult[0](kinematikk, thermok))) {
+            auto j = 0;
+          }
 
           Fx.coeffRef(indI, indJ) = quadResult[0](kinematikk, thermok);
           Fy.coeffRef(indI, indJ) = quadResult[1](kinematikk, thermok);
@@ -1527,6 +1531,9 @@ Eigen::Matrix<double, 2, 2> FEMALEMethod::calcStressTensor(
     size_t indK = getThermodynamicIndexFromCell(celli, cellj, k);
     eLocal += e[indK] * thermoBasis1DQuadValues[(k % order) * quadOrder + i] *
               thermoBasis1DQuadValues[(k / order) * quadOrder + j];
+  }
+  if (std::isnan(eLocal)) {
+    auto j = 0;
   }
 
   Eigen::Matrix<double, 2, 2> jacobianInitial =
@@ -2531,13 +2538,15 @@ void FEMALEMethod::resolveBottomBoundaryForce() {
   }
 }
 
-void FEMALEMethod::resolveBoundaryForceVector() {
-  resolveLeftBoundaryForceVector();
-  resolveTopBoundaryForceVector();
-  resolveRightBoundaryForceVector();
-  resolveBottomBoundaryForceVector();
+void FEMALEMethod::resolveBoundaryForceVector(Eigen::VectorXd &Fu,
+                                              Eigen::VectorXd &Fv) {
+  resolveLeftBoundaryForceVector(Fu, Fv);
+  resolveTopBoundaryForceVector(Fu, Fv);
+  resolveRightBoundaryForceVector(Fu, Fv);
+  resolveBottomBoundaryForceVector(Fu, Fv);
 }
-void FEMALEMethod::resolveLeftBoundaryForceVector() {
+void FEMALEMethod::resolveLeftBoundaryForceVector(Eigen::VectorXd &Fu,
+                                                  Eigen::VectorXd &Fv) {
   const size_t celli = 0;
   switch (problem.leftBoundaryType) {
     case BoundaryType::eFree:
@@ -2561,7 +2570,8 @@ void FEMALEMethod::resolveLeftBoundaryForceVector() {
       break;
   }
 }
-void FEMALEMethod::resolveTopBoundaryForceVector() {
+void FEMALEMethod::resolveTopBoundaryForceVector(Eigen::VectorXd &Fu,
+                                                 Eigen::VectorXd &Fv) {
   const size_t cellj = ySize - 1;
   switch (problem.topBoundaryType) {
     case BoundaryType::eFree:
@@ -2587,7 +2597,8 @@ void FEMALEMethod::resolveTopBoundaryForceVector() {
       break;
   }
 }
-void FEMALEMethod::resolveRightBoundaryForceVector() {
+void FEMALEMethod::resolveRightBoundaryForceVector(Eigen::VectorXd &Fu,
+                                                   Eigen::VectorXd &Fv) {
   const size_t celli = xSize - 1;
   switch (problem.rightBoundaryType) {
     case BoundaryType::eFree:
@@ -2611,7 +2622,8 @@ void FEMALEMethod::resolveRightBoundaryForceVector() {
       break;
   }
 }
-void FEMALEMethod::resolveBottomBoundaryForceVector() {
+void FEMALEMethod::resolveBottomBoundaryForceVector(Eigen::VectorXd &Fu,
+                                                    Eigen::VectorXd &Fv) {
   const size_t cellj = 0;
   switch (problem.bottomBoundaryType) {
     case BoundaryType::eFree:
@@ -2812,7 +2824,7 @@ void FEMALEMethod::RK2step() {
 
     Fu = Fx * Eigen::Matrix<double, Eigen::Dynamic, 1>::Ones(Nt);
     Fv = Fy * Eigen::Matrix<double, Eigen::Dynamic, 1>::Ones(Nt);
-    resolveBoundaryForceVector();
+    resolveBoundaryForceVector(Fu, Fv);
 
     u05 = kinematicSolverx.solve(Fu);
     assert(kinematicSolverx.info() == Eigen::Success);
@@ -2844,7 +2856,7 @@ void FEMALEMethod::RK2step() {
 
   Fu = Fx * Eigen::Matrix<double, Eigen::Dynamic, 1>::Ones(Nt);
   Fv = Fy * Eigen::Matrix<double, Eigen::Dynamic, 1>::Ones(Nt);
-  resolveBoundaryForceVector();
+  resolveBoundaryForceVector(Fu, Fv);
 
   u05 = kinematicSolverx.solve(Fu);
   assert(kinematicSolverx.info() == Eigen::Success);
@@ -2879,6 +2891,138 @@ void FEMALEMethod::RK2step() {
   x.swap(x05);
   y.swap(y05);
   e.swap(e05);
+}
+
+void FEMALEMethod::RK4step() {
+  calcForceMatrices(x, y, u, v, e);
+  tau = std::numeric_limits<double>::max();
+  if (dt >= tau) {
+    dt = beta1 * tau;
+  }
+
+  Fu1 = Fx * Eigen::VectorXd::Ones(Nt);
+  assert(!Fu1.hasNaN());
+  Fv1 = Fy * Eigen::VectorXd::Ones(Nt);
+  resolveBoundaryForceVector(Fu1, Fv1);
+  Fe1 = Fx.transpose() * u + Fy.transpose() * v;
+  u1 = u;
+  v1 = v;
+
+  while (true) {
+    u05 = kinematicSolverx.solve(Fu1);
+    v05 = kinematicSolvery.solve(Fv1);
+    u05 *= -0.5 * dt;
+    v05 *= -0.5 * dt;
+    u05 += u;
+    v05 += v;
+    e05 = Mt_inv * Fe1;
+    e05 *= 0.5 * dt;
+    e05 += e;
+    x05 = x + 0.5 * dt * u1;
+    y05 = y + 0.5 * dt * v1;
+
+    calcForceMatrices(x05, y05, u05, v05, e05);
+    if (dt >= tau) {
+      dt = beta1 * tau;
+      continue;
+    }
+
+    Fu2 = Fx * Eigen::VectorXd::Ones(Nt);
+    Fv2 = Fy * Eigen::VectorXd::Ones(Nt);
+    resolveBoundaryForceVector(Fu2, Fv2);
+
+    u05 = kinematicSolverx.solve(Fu2);
+    u05 *= -0.5 * dt;
+    u05 += u;
+    u2 = u05;
+    v05 = kinematicSolvery.solve(Fv2);
+    v05 *= -0.5 * dt;
+    v05 += v;
+    v2 = v05;
+
+    Fe2 = Fx.transpose() * u05 + Fy.transpose() * v05;
+    e05 = Mt_inv * Fe2;
+    e05 *= 0.5 * dt;
+    e05 += e;
+    x05 = x + 0.5 * dt * u2;
+    y05 = y + 0.5 * dt * v2;
+
+    calcForceMatrices(x05, y05, u05, v05, e05);
+    if (dt >= tau) {
+      dt = beta1 * tau;
+      continue;
+    }
+
+    Fu3 = Fx * Eigen::VectorXd::Ones(Nt);
+    Fv3 = Fy * Eigen::VectorXd::Ones(Nt);
+    resolveBoundaryForceVector(Fu3, Fv3);
+
+    u05 = kinematicSolverx.solve(Fu3);
+    u05 *= -dt;
+    u05 += u;
+    v05 = kinematicSolvery.solve(Fv3);
+    v05 *= -dt;
+    v05 += v;
+    u3 = u05;
+    v3 = v05;
+
+    Fe3 = Fx.transpose() * u05 + Fy.transpose() * v05;
+    e05 = Mt_inv * Fe3;
+    e05 *= dt;
+    e05 += e;
+    x05 = x + dt * u3;
+    y05 = y + dt * v3;
+
+    calcForceMatrices(x05, y05, u05, v05, e05);
+    if (dt >= tau) {
+      dt = beta1 * tau;
+      continue;
+    } else {
+      break;
+    }
+  }
+
+  Fu4 = Fx * Eigen::VectorXd::Ones(Nt);
+  Fv4 = Fy * Eigen::VectorXd::Ones(Nt);
+  resolveBoundaryForceVector(Fu4, Fv4);
+
+  u05 = kinematicSolverx.solve(Fu3);
+  u05 *= -dt;
+  u05 += u;
+  u4 = u05;
+  v05 = kinematicSolvery.solve(Fv3);
+  v05 *= -dt;
+  v05 += v;
+  v4 = v05;
+
+  Fe4 = Fx.transpose() * u05 + Fy.transpose() * v05;
+
+  Fu = Fu1 / 6.0 + Fu2 / 3.0 + Fu3 / 3.0 + Fu4 / 6.0;
+  Fv = Fv1 / 6.0 + Fv2 / 3.0 + Fv3 / 3.0 + Fv4 / 6.0;
+  Fe = Fe1 / 6.0 + Fe2 / 3.0 + Fe3 / 3.0 + Fe4 / 6.0;
+
+  u05 = kinematicSolverx.solve(Fu);
+  u05 *= -dt;
+  u05 += u;
+  v05 = kinematicSolvery.solve(Fv);
+  v05 *= -dt;
+  v05 += v;
+  e05 = Mt_inv * Fe;
+  e05 *= dt;
+  e05 += e;
+  x05 = x + dt / 6.0 * (u1 + 2.0 * u2 + 2.0 * u3 + u4);
+  y05 = y + dt / 6.0 * (v1 + 2.0 * v2 + 2.0 * v3 + v4);
+
+  x.swap(x05);
+  y.swap(y05);
+  u.swap(u05);
+  v.swap(v05);
+  e.swap(e05);
+
+  t += dt;
+  if (dt <= gamma * tau) {
+    dt = beta2 * dt;
+  }
 }
 
 void FEMALEMethod::remap() {
