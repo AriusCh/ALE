@@ -20,9 +20,18 @@ class Problem {
   static Problem createRiemannProblem1Dx(const std::string &name, double xmin,
                                          double xmax, double tmax,
                                          const std::deque<double> &tOut,
-                                         double uL, double rhoL, double pL,
-                                         double uR, double rhoR, double pR,
-                                         double spl, double gamma);
+                                         double tMul, double uL, double rhoL,
+                                         double pL, double uR, double rhoR,
+                                         double pR, double spl, double gamma);
+  static Problem createRiemannProblem1DxBackgroundPressure(
+      const std::string &name, double xmin, double xmax, double tmax,
+      const std::deque<double> &tOut, double tMul, double uL, double rhoL,
+      double pL, double uR, double rhoR, double pR, double spl, double gamma,
+      double p0);
+  static Problem createRiemannProblem1DxNegativePressure(
+      const std::string &name, double xmin, double xmax, double tmax,
+      const std::deque<double> &tOut, double tMul, double uL, double rhoL,
+      double pL, double uR, double rhoR, double pR, double spl, double gamma);
   static Problem createCircularRiemannProblem(
       const std::string &name, double xmin, double xmax, double ymin,
       double ymax, double tmax, const std::deque<double> &tOut, double uIn,
@@ -104,6 +113,8 @@ class Problems {
   static Problem toro3x;
   static Problem toro4x;
   static Problem toro5x;
+  static Problem toro3xBackgroundPressure;
+  static Problem toro3xNegativePressure;
   static Problem blastWave2D;
   static Problem laserVolumeTarget;
   static Problem laserVolumeTargetAir;

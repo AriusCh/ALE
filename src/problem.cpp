@@ -1,21 +1,18 @@
 #include "problem.hpp"
 
 #include <cassert>
-#include <format>
-#include <fstream>
 #include <numbers>
 
 Problem Problem::createRiemannProblem1Dx(const std::string &name, double xmin,
                                          double xmax, double tmax,
                                          const std::deque<double> &tOut,
-                                         double uL, double rhoL, double pL,
-                                         double uR, double rhoR, double pR,
-                                         double spl, double gamma) {
+                                         double tMul, double uL, double rhoL,
+                                         double pL, double uR, double rhoR,
+                                         double pR, double spl, double gamma) {
   assert(spl >= xmin && spl <= xmax);
   double ymin = 0.0;
   double ymax = 1.0;
   double tmin = 0.0;
-  double tMul = 1.0;
   BoundaryType leftBoundaryType = BoundaryType::eWall;
   BoundaryType topBoundaryType = BoundaryType::eWall;
   BoundaryType rightBoundaryType = BoundaryType::eWall;
@@ -49,6 +46,107 @@ Problem Problem::createRiemannProblem1Dx(const std::string &name, double xmin,
   auto eosInitializer = [gamma]([[maybe_unused]] double x,
                                 [[maybe_unused]] double y) {
     static std::shared_ptr<EOSIdeal> eos = std::make_shared<EOSIdeal>(gamma);
+    return eos;
+  };
+  return Problem(name, xmin, xmax, ymin, ymax, tmin, tmax, tOut, tMul,
+                 leftBoundaryType, topBoundaryType, rightBoundaryType,
+                 bottomBoundaryType, dimension, uInitializer, vInitializer,
+                 rhoInitializer, pInitializer, eosInitializer);
+}
+
+Problem Problem::createRiemannProblem1DxBackgroundPressure(
+    const std::string &name, double xmin, double xmax, double tmax,
+    const std::deque<double> &tOut, double tMul, double uL, double rhoL,
+    double pL, double uR, double rhoR, double pR, double spl, double gamma,
+    double p0) {
+  assert(spl >= xmin && spl <= xmax);
+  double ymin = 0.0;
+  double ymax = 1.0;
+  double tmin = 0.0;
+  BoundaryType leftBoundaryType = BoundaryType::eWall;
+  BoundaryType topBoundaryType = BoundaryType::eWall;
+  BoundaryType rightBoundaryType = BoundaryType::eWall;
+  BoundaryType bottomBoundaryType = BoundaryType::eWall;
+  ProblemDimension dimension = ProblemDimension::e1D;
+  auto uInitializer = [uL, uR, spl](double x, [[maybe_unused]] double y) {
+    if (x < spl) {
+      return uL;
+    } else {
+      return uR;
+    }
+  };
+  auto vInitializer = []([[maybe_unused]] double x, [[maybe_unused]] double y) {
+    return 0.0;
+  };
+  auto rhoInitializer = [rhoL, rhoR, spl](double x, [[maybe_unused]] double y) {
+    if (x < spl) {
+      return rhoL;
+
+    } else {
+      return rhoR;
+    }
+  };
+  auto pInitializer = [pL, pR, spl](double x, [[maybe_unused]] double y) {
+    if (x < spl) {
+      return pL;
+    } else {
+      return pR;
+    }
+  };
+  auto eosInitializer = [gamma, p0]([[maybe_unused]] double x,
+                                    [[maybe_unused]] double y) {
+    static std::shared_ptr<EOSIdealBackgroundPressure> eos =
+        std::make_shared<EOSIdealBackgroundPressure>(gamma, p0);
+    return eos;
+  };
+  return Problem(name, xmin, xmax, ymin, ymax, tmin, tmax, tOut, tMul,
+                 leftBoundaryType, topBoundaryType, rightBoundaryType,
+                 bottomBoundaryType, dimension, uInitializer, vInitializer,
+                 rhoInitializer, pInitializer, eosInitializer);
+}
+
+Problem Problem::createRiemannProblem1DxNegativePressure(
+    const std::string &name, double xmin, double xmax, double tmax,
+    const std::deque<double> &tOut, double tMul, double uL, double rhoL,
+    double pL, double uR, double rhoR, double pR, double spl, double gamma) {
+  assert(spl >= xmin && spl <= xmax);
+  double ymin = 0.0;
+  double ymax = 1.0;
+  double tmin = 0.0;
+  BoundaryType leftBoundaryType = BoundaryType::eWall;
+  BoundaryType topBoundaryType = BoundaryType::eWall;
+  BoundaryType rightBoundaryType = BoundaryType::eWall;
+  BoundaryType bottomBoundaryType = BoundaryType::eWall;
+  ProblemDimension dimension = ProblemDimension::e1D;
+  auto uInitializer = [uL, uR, spl](double x, [[maybe_unused]] double y) {
+    if (x < spl) {
+      return uL;
+    } else {
+      return uR;
+    }
+  };
+  auto vInitializer = []([[maybe_unused]] double x, [[maybe_unused]] double y) {
+    return 0.0;
+  };
+  auto rhoInitializer = [rhoL, rhoR, spl](double x, [[maybe_unused]] double y) {
+    if (x < spl) {
+      return rhoL;
+
+    } else {
+      return rhoR;
+    }
+  };
+  auto pInitializer = [pL, pR, spl](double x, [[maybe_unused]] double y) {
+    if (x < spl) {
+      return pL;
+    } else {
+      return pR;
+    }
+  };
+  auto eosInitializer = [gamma]([[maybe_unused]] double x,
+                                [[maybe_unused]] double y) {
+    static std::shared_ptr<EOSIdealNegativePressure> eos =
+        std::make_shared<EOSIdealNegativePressure>(gamma);
     return eos;
   };
   return Problem(name, xmin, xmax, ymin, ymax, tmin, tmax, tOut, tMul,
@@ -193,10 +291,11 @@ Problem Problem::createLaserVolumeTargetAirProblem(
   };
   auto eosInitializer = [gammaAir]([[maybe_unused]] double x,
                                    double y) -> std::shared_ptr<EOS> {
+    constexpr double p0 = 1e6;
     static std::shared_ptr<EOSMGAlPrecise6> eosM =
         std::make_shared<EOSMGAlPrecise6>();
-    static std::shared_ptr<EOSIdeal> eosAir =
-        std::make_shared<EOSIdeal>(gammaAir);
+    static std::shared_ptr<EOSIdealBackgroundPressure> eosAir =
+        std::make_shared<EOSIdealBackgroundPressure>(gammaAir, p0);
     if (y > 0.0) {
       return eosAir;
     }
@@ -470,23 +569,31 @@ Problem::Problem(
 
 // Riemann test problems
 Problem Problems::sodTest = Problem::createRiemannProblem1Dx(
-    "sod-test", 0.0, 1.0, 0.2, std::deque<double>{}, 0.0, 1.0, 1.0, 0.0, 0.125,
-    0.1, 0.5, 5.0 / 3.0);
+    "sod-test", 0.0, 1.0, 0.2, std::deque<double>{}, 1.0, 0.0, 1.0, 1.0, 0.0,
+    0.125, 0.1, 0.5, 5.0 / 3.0);
 Problem Problems::toro1x = Problem::createRiemannProblem1Dx(
-    "toro1x", 0.0, 1.0, 0.2, std::deque<double>{}, 0.75, 1.0, 1.0, 0.0, 0.125,
-    0.1, 0.3, 1.4);
+    "toro1x", 0.0, 1.0, 0.2, std::deque<double>{}, 1.0, 0.75, 1.0, 1.0, 0.0,
+    0.125, 0.1, 0.3, 1.4);
 Problem Problems::toro2x = Problem::createRiemannProblem1Dx(
-    "toro2x", 0.0, 1.0, 0.15, std::deque<double>{}, -2.0, 1.0, 0.4, 2.0, 1.0,
-    0.4, 0.5, 1.4);
+    "toro2x", 0.0, 1.0, 0.15, std::deque<double>{}, 1.0, -2.0, 1.0, 0.4, 2.0,
+    1.0, 0.4, 0.5, 1.4);
 Problem Problems::toro3x = Problem::createRiemannProblem1Dx(
-    "toro3x", 0.0, 1.0, 0.012, std::deque<double>{}, 0.0, 1.0, 1000.0, 0.0, 1.0,
-    0.01, 0.5, 1.4);
+    "toro3x", 0.0, 1.0, 0.012, std::deque<double>{}, 1.0, 0.0, 1.0, 1000.0, 0.0,
+    1.0, 0.01, 0.5, 1.4);
 Problem Problems::toro4x = Problem::createRiemannProblem1Dx(
-    "toro4x", 0.0, 1.0, 0.035, std::deque<double>{}, 19.5975, 5.99924, 460.894,
-    -6.19633, 5.99242, 46.0950, 0.4, 1.4);
+    "toro4x", 0.0, 1.0, 0.035, std::deque<double>{}, 1.0, 19.5975, 5.99924,
+    460.894, -6.19633, 5.99242, 46.0950, 0.4, 1.4);
 Problem Problems::toro5x = Problem::createRiemannProblem1Dx(
-    "toro5x", 0.0, 1.0, 0.012, std::deque<double>{}, -19.59745, 1.0, 1000.0,
-    -19.59745, 1.0, 0.01, 0.8, 1.4);
+    "toro5x", 0.0, 1.0, 0.012, std::deque<double>{}, 1.0, -19.59745, 1.0,
+    1000.0, -19.59745, 1.0, 0.01, 0.8, 1.4);
+Problem Problems::toro3xBackgroundPressure =
+    Problem::createRiemannProblem1DxBackgroundPressure(
+        "toro3xBackgroundPressure", 0.0, 1.0, 0.012, std::deque<double>{}, 1.0,
+        0.0, 1.0, 1000.0, 0.0, 1.0, 0.01, 0.5, 1.4, 1e1);
+Problem Problems::toro3xNegativePressure =
+    Problem::createRiemannProblem1DxNegativePressure(
+        "toro3xNegativePressure", 0.0, 1.0, 0.012, std::deque<double>{}, 1.0,
+        0.0, 1.0, 1000.0, 0.0, 1.0, 0.01, 0.5, 1.4);
 
 Problem Problems::blastWave2D = Problem::createCircularRiemannProblem(
     "blastWave", 0.0, 1.0, 0.0, 1.0, 0.25, std::deque<double>{}, 0.0, 0.0, 1.0,
@@ -509,7 +616,7 @@ Problem Problems::laserVolumeTargetAir =
                            3.0 * 9.6e-12, 4.0 * 9.6e-12, 5.0 * 9.6e-12,
                            6.0 * 9.6e-12, 7.0 * 9.6e-12, 8.0 * 9.6e-12,
                            9.0 * 9.6e-12, 10.0 * 9.6e-12, 11.0 * 9.6e-12},
-        2413.0, 101325, 35.6e9, 200e-9, 80e-9, 1.2754, 1.4);
+        2413.0, 101325, 35.6e9, 200e-9, 80e-9, 2.0, 1.4);
 
 // Triple point shock wave
 Problem Problems::triplePointShock = Problem::createTriplePointProblem(

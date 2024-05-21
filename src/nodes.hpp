@@ -1,6 +1,7 @@
 #ifndef ALE_SOLVER_SRC_NODES_HPP_
 #define ALE_SOLVER_SRC_NODES_HPP_
 
+#include <algorithm>
 #include <array>
 #include <cassert>
 #include <cstddef>
@@ -351,6 +352,9 @@ inline size_t getLobattoStartIndex(size_t order) {
 double lobattoBasis1D(double x, size_t order, size_t k);
 double lobattoBasis1Ddx(double x, size_t order, size_t k);
 double legendreBasis1D(double x, size_t order, size_t k);
+inline double legendreBasis1DClamped(double x, size_t order, size_t k) {
+  return std::clamp(legendreBasis1D(x, order, k), 0.0, 1.0);
+}
 double bernsteinBasis1D(double x, size_t order, size_t k);
 double bernsteinBasis1Ddx(double x, size_t order, size_t k);
 

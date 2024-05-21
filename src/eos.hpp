@@ -43,6 +43,68 @@ class EOSIdeal : public EOS {
   double gamma;
 };
 
+class EOSIdealBackgroundPressure : public EOS {
+ public:
+  EOSIdealBackgroundPressure(double gamma_, double p0_)
+      : gamma(gamma_), p0(p0_) {}
+  EOSIdealBackgroundPressure(EOSIdealBackgroundPressure const &rhs) = default;
+  EOSIdealBackgroundPressure(EOSIdealBackgroundPressure &&rhs) = default;
+
+  EOSIdealBackgroundPressure &operator=(EOSIdealBackgroundPressure const &rhs) =
+      default;
+  EOSIdealBackgroundPressure &operator=(EOSIdealBackgroundPressure &&rhs) =
+      default;
+  virtual ~EOSIdealBackgroundPressure() = default;
+
+ public:
+  inline virtual double getp(double rho, double e) const override {
+    return (gamma - 1.0) * rho * e - gamma * p0;
+  }
+  inline virtual double gete(double rho, double p) const override {
+    return (p + gamma * p0) / ((gamma - 1.0) * rho);
+  }
+  inline virtual double getc(double rho, double p) const override {
+    return std::sqrt(gamma * std::abs(p + gamma * p0) / rho);
+  }
+  inline virtual double gets(double rho, double p) const override {
+    return (p + gamma * p0) / std::pow(rho, gamma);
+  }
+
+ private:
+  double gamma;
+  double p0;
+};
+
+class EOSIdealNegativePressure : public EOS {
+ public:
+ public:
+  EOSIdealNegativePressure(double gamma_) : gamma(gamma_) {}
+  EOSIdealNegativePressure(EOSIdealNegativePressure const &rhs) = default;
+  EOSIdealNegativePressure(EOSIdealNegativePressure &&rhs) = default;
+
+  EOSIdealNegativePressure &operator=(EOSIdealNegativePressure const &rhs) =
+      default;
+  EOSIdealNegativePressure &operator=(EOSIdealNegativePressure &&rhs) = default;
+  virtual ~EOSIdealNegativePressure() = default;
+
+ public:
+  inline virtual double getp(double rho, double e) const override {
+    return (gamma - 1.) * rho * e;
+  }
+  inline virtual double gete(double rho, double p) const override {
+    return p / (gamma - 1.) / rho;
+  }
+  inline virtual double getc(double rho, double p) const override {
+    return std::sqrt(gamma * std::abs(p / rho));
+  }
+  inline virtual double gets(double rho, double p) const override {
+    return p / std::pow(rho, gamma);
+  }
+
+ private:
+  double gamma;
+};
+
 class EOSMGAlPrecise6 : public EOS {
  public:
   EOSMGAlPrecise6()

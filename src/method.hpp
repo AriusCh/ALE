@@ -262,7 +262,7 @@ class FEMALEMethod : public Method {
   const size_t remapFrequency;
   const double q1 = 0.5;
   const double q2 = 2.0;
-  const double alpha = 0.3;
+  const double alpha = 0.5;
   const double alphamu = 2.5;
   const double beta1 = 0.85;
   const double beta2 = 1.02;

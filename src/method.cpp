@@ -761,7 +761,9 @@ FEMALEMethod::quadForceCell(size_t celli, size_t cellj,
       Eigen::Matrix<double, 2, 2> jacobian =
           getCellJacobian(celli, cellj, quadi, quadj, x, y);
       Eigen::JacobiSVD<Eigen::Matrix<double, 2, 2>> svd(jacobian);
-      double hmin = svd.singularValues().minCoeff() / order;
+      // double hmin = svd.singularValues().minCoeff() / order;
+      double hmin = svd.singularValues().minCoeff() *
+                    lobattoAbscissas[getLobattoStartIndex(order) + 1];
       double soundSpeed = 0.0;
       double rhoLocal = 0.0;
       double maxViscosityCoeff = 0.0;
@@ -1245,6 +1247,7 @@ void FEMALEMethod::initQuadBasisValues() {
     for (size_t i = indMin; i < indMin + quadOrder; i++) {
       double xi = legendreAbscissas[i];
       thermoBasis1DQuadValues.push_back(legendreBasis1D(xi, order - 1, k));
+      // thermoBasis1DQuadValues.push_back(lobattoBasis1D(xi, order - 1, k));
     }
   }
 
@@ -1278,6 +1281,7 @@ void FEMALEMethod::initOutputBasisValues() {
     for (size_t i = 0; i < order; i++) {
       double xi = 0.5 * dx + dx * i;
       output1DThermoValues.push_back(legendreBasis1D(xi, order - 1, k));
+      // output1DThermoValues.push_back(lobattoBasis1D(xi, order - 1, k));
     }
   }
 
@@ -1570,8 +1574,8 @@ Eigen::Matrix<double, 2, 2> FEMALEMethod::calcArtificialViscosity(
       Eigen::Matrix<double, 2, 2>::Zero();
   for (size_t k = 0; k < (order + 1) * (order + 1); k++) {
     size_t indK = getKinematicIndexFromCell(celli, cellj, k);
-    double uk = u[indK];
-    double vk = v[indK];
+    double uk = u(indK);
+    double vk = v(indK);
     double basis2Ddx =
         kinematicBasis1DdxQuadValues[(k % (order + 1)) * quadOrder + i] *
         kinematicBasis1DQuadValues[(k / (order + 1)) * quadOrder + j];
@@ -1607,6 +1611,9 @@ Eigen::Matrix<double, 2, 2> FEMALEMethod::calcArtificialViscosity(
   output += viscosityCoeff2 * e2 * v2Tensor;
 
   maxViscosityCoeff = std::max(viscosityCoeff1, viscosityCoeff2);
+
+  // output = viscosityCoeff1 * e1 * v1Tensor;
+  // maxViscosityCoeff = viscosityCoeff1;
 
   return output;
 }
